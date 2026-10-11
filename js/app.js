@@ -49,6 +49,17 @@
     }
   }
 
+  function initSettings() {
+    const btn = document.getElementById('settingsBtn');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (global.settings && global.settings.open) {
+        global.settings.open();
+      }
+    });
+  }
+
   function initRouter() {
     if (!global.router) return;
     global.router.init();
@@ -80,6 +91,7 @@
     try {
       initTheme();
       initLanguage();
+      initSettings();
       initRouter();
       initHome();
       applyInitialState();
