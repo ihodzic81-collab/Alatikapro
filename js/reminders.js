@@ -1,0 +1,564 @@
+/* =========================================================
+   ALATIKA PRO — reminders.js
+   Modul Podsetnici:
+   - Lista, filteri, pretraga, grupisanje po datumu
+   - Dodavanje / izmena / brisanje / završavanje
+   - Kategorije (10 početnih + custom)
+   - Prioritet, ponavljanje, opis, vreme
+   ========================================================= */
+
+(function (global) {
+  'use strict';
+
+  const STORE = 'reminders';
+
+  const DEFAULT_CATEGORIES = [
+    { id: 'bills',     name_sr: 'Računi i plaćanja',       name_en: 'Bills & payments' },
+    { id: 'vehicle',   name_sr: 'Vozila i registracija',   name_en: 'Vehicles & registration' },
+    { id: 'personal',  name_sr: 'Lična dokumenta',         name_en: 'Personal documents' },
+    { id: 'family',    name_sr: 'Porodica i rođendani',    name_en: 'Family & birthdays' },
+    { id: 'health',    name_sr: 'Zdravlje i pregledi',     name_en: 'Health & checkups' },
+    { id: 'work',      name_sr: 'Posao',                   name_en: 'Work' },
+    { id: 'subs',      name_sr: 'Pretplate',               name_en: 'Subscriptions' },
+    { id: 'home',      name_sr: 'Kuća i imovina',          name_en: 'Home & property' },
+    { id: 'travel',    name_sr: 'Putovanja',               name_en: 'Travel' },
+    { id: 'other',     name_sr: 'Ostalo',                  name_en: 'Other' }
+  ];
+
+  const LS_CUSTOM_CATS = 'reminders.customCats';
+
+  /* ---------- STANJE ---------- */
+  const state = {
+    items: [],
+    filter: 'all',       /* all | active | done | overdue */
+    search: '',
+    editingId: null
+  };
+
+  /* ---------- POMOĆNE ---------- */
+
+  function t(key, fallback) {
+    return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
+  }
+
+  function lang() {
+    return (global.i18n && global.i18n.getLang) ? global.i18n.getLang() : 'sr';
+  }
+
+  function categoryName(catId) {
+    const all = getAllCategories();
+    const c = all.find(function (x) { return x.id === catId; });
+    if (!c) return catId;
+    return lang() === 'en' ? (c.name_en || c.name_sr) : (c.name_sr || c.name_en);
+  }
+
+  function getAllCategories() {
+    const custom = global.storage.lsGet(LS_CUSTOM_CATS, []) || [];
+    return DEFAULT_CATEGORIES.concat(custom);
+  }
+
+  function addCustomCategory(name) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return null;
+    const id = 'custom-' + global.utils.uid('');
+    const custom = global.storage.lsGet(LS_CUSTOM_CATS, []) || [];
+    custom.push({ id: id, name_sr: trimmed, name_en: trimmed, custom: true });
+    global.storage.lsSet(LS_CUSTOM_CATS, custom);
+    return id;
+  }
+
+  /* ---------- UČITAVANJE ---------- */
+
+  function loadAll() {
+    return global.storage.loadAll(STORE).then(function (list) {
+      state.items = (list || []).sort(function (a, b) {
+        return (a.date || '').localeCompare(b.date || '');
+      });
+      return state.items;
+    });
+  }
+
+  /* ---------- FILTRIRANJE I GRUPISANJE ---------- */
+
+  function applyFilter(list) {
+    const today = global.utils.todayISO();
+    let out = list.slice();
+
+    if (state.filter === 'active') {
+      out = out.filter(function (r) { return !r.done; });
+    } else if (state.filter === 'done') {
+      out = out.filter(function (r) { return r.done; });
+    } else if (state.filter === 'overdue') {
+      out = out.filter(function (r) { return !r.done && r.date && r.date < today; });
+    }
+
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      out = out.filter(function (r) {
+        return (r.title || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.description || '').toLowerCase().indexOf(q) !== -1 ||
+               categoryName(r.category).toLowerCase().indexOf(q) !== -1;
+      });
+    }
+
+    return out;
+  }
+
+  function groupByDate(list) {
+    const today = global.utils.todayISO();
+    const tomorrow = global.utils.addDays(today, 1);
+    const in7 = global.utils.addDays(today, 7);
+
+    const groups = {
+      overdue: [],
+      today: [],
+      tomorrow: [],
+      next7: [],
+      later: [],
+      done: []
+    };
+
+    list.forEach(function (r) {
+      if (r.done) { groups.done.push(r); return; }
+      if (!r.date) { groups.later.push(r); return; }
+      if (r.date < today) { groups.overdue.push(r); return; }
+      if (r.date === today) { groups.today.push(r); return; }
+      if (r.date === tomorrow) { groups.tomorrow.push(r); return; }
+      if (r.date <= in7) { groups.next7.push(r); return; }
+      groups.later.push(r);
+    });
+
+    return groups;
+  }
+
+  /* ---------- RENDER ---------- */
+
+  function renderInto(view) {
+    const header = view.querySelector('.module-header');
+    view.innerHTML = '';
+    if (header) view.appendChild(header);
+
+    /* Filteri */
+    const filters = document.createElement('div');
+    filters.className = 'rem-filters';
+    const filterDefs = [
+      { id: 'all',     label: t('rem.filter.all', 'Svi') },
+      { id: 'active',  label: t('rem.filter.active', 'Aktivni') },
+      { id: 'done',    label: t('rem.filter.done', 'Završeni') },
+      { id: 'overdue', label: t('rem.filter.overdue', 'Istekli') }
+    ];
+    filterDefs.forEach(function (f) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rem-filter' + (state.filter === f.id ? ' active' : '');
+      btn.textContent = f.label;
+      btn.addEventListener('click', function () {
+        state.filter = f.id;
+        renderInto(view);
+      });
+      filters.appendChild(btn);
+    });
+    view.appendChild(filters);
+
+    /* Pretraga */
+    const search = document.createElement('div');
+    search.className = 'rem-search';
+    search.innerHTML = [
+      '<svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.65" y2="16.65"></line></svg>',
+      '<input type="search" id="remSearchInput" placeholder="' + t('rem.search', 'Pretraga...') + '" value="' + global.utils.escapeHtml(state.search) + '" />'
+    ].join('');
+    view.appendChild(search);
+    const inp = search.querySelector('#remSearchInput');
+    inp.addEventListener('input', global.utils.debounce(function () {
+      state.search = inp.value.trim();
+      renderInto(view);
+    }, 200));
+
+    /* Lista */
+    const filtered = applyFilter(state.items);
+    const groups = groupByDate(filtered);
+
+    const groupOrder = [
+      { key: 'overdue',  label: t('rem.group.overdue', 'Istekli') },
+      { key: 'today',    label: t('rem.group.today', 'Danas') },
+      { key: 'tomorrow', label: t('rem.group.tomorrow', 'Sutra') },
+      { key: 'next7',    label: t('rem.group.next7', 'Narednih 7 dana') },
+      { key: 'later',    label: t('rem.group.later', 'Kasnije') },
+      { key: 'done',     label: t('rem.group.done', 'Završeni') }
+    ];
+
+    let totalShown = 0;
+
+    groupOrder.forEach(function (g) {
+      const items = groups[g.key] || [];
+      if (!items.length) return;
+      totalShown += items.length;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'rem-group';
+
+      const title = document.createElement('div');
+      title.className = 'rem-group-title';
+      title.innerHTML = '<span>' + global.utils.escapeHtml(g.label) + '</span>' +
+                        '<span class="rem-group-count">' + items.length + '</span>';
+      wrap.appendChild(title);
+
+      items.forEach(function (r) {
+        wrap.appendChild(buildItem(r, view));
+      });
+
+      view.appendChild(wrap);
+    });
+
+    if (totalShown === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'rem-empty';
+      empty.textContent = state.search
+        ? t('rem.emptySearch', 'Nema rezultata za pretragu.')
+        : t('rem.empty', 'Još uvek nemaš podsetnika. Dodaj prvi!');
+      view.appendChild(empty);
+    }
+
+    /* FAB */
+    let fab = document.getElementById('remFab');
+    if (!fab) {
+      fab = document.createElement('button');
+      fab.type = 'button';
+      fab.id = 'remFab';
+      fab.className = 'fab';
+      fab.setAttribute('aria-label', t('rem.add', 'Dodaj podsetnik'));
+      fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+      document.body.appendChild(fab);
+    }
+    fab.onclick = function () { openForm(null); };
+
+    /* FAB se vidi samo na reminders ruti */
+    toggleFabVisibility();
+  }
+
+  function toggleFabVisibility() {
+    const fab = document.getElementById('remFab');
+    if (!fab) return;
+    const route = global.router && global.router.current ? global.router.current() : 'home';
+    fab.style.display = route === 'reminders' ? '' : 'none';
+  }
+
+  function buildItem(r, view) {
+    const item = document.createElement('div');
+    item.className = 'rem-item' + (r.done ? ' done' : '');
+
+    /* Checkbox */
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'rem-check';
+    check.setAttribute('aria-label', r.done ? t('rem.markActive', 'Vrati u aktivne') : t('rem.markDone', 'Označi kao završeno'));
+    check.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    check.addEventListener('click', function () {
+      r.done = !r.done;
+      r.doneAt = r.done ? new Date().toISOString() : null;
+      global.storage.save(STORE, r).then(function () {
+        renderInto(view);
+        if (global.home) global.home.refresh();
+      });
+    });
+    item.appendChild(check);
+
+    /* Body */
+    const body = document.createElement('div');
+    body.className = 'rem-body';
+
+    const title = document.createElement('div');
+    title.className = 'rem-title';
+    title.textContent = r.title || '';
+    body.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'rem-meta';
+
+    if (r.date) {
+      const days = global.utils.daysFromToday(r.date);
+      let cls = 'rem-meta-item';
+      let label = global.utils.formatDate(r.date, lang());
+      if (r.time) label += ' • ' + r.time;
+      if (!r.done) {
+        if (days < 0) { cls += ' overdue'; label += ' • ' + t('rem.overdue', 'isteklo'); }
+        else if (days === 0) { cls += ' soon'; label += ' • ' + t('rem.today', 'danas'); }
+        else if (days === 1) { label += ' • ' + t('rem.tomorrow', 'sutra'); }
+        else if (days <= 7) { label += ' • ' + t('rem.inDays', 'za') + ' ' + days + ' ' + t('rem.days', 'dana'); }
+      }
+      const dateEl = document.createElement('span');
+      dateEl.className = cls;
+      dateEl.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="3" x2="8" y2="7"></line><line x1="16" y1="3" x2="16" y2="7"></line></svg> ' + global.utils.escapeHtml(label);
+      meta.appendChild(dateEl);
+    }
+
+    if (r.category) {
+      const cat = document.createElement('span');
+      cat.className = 'rem-category-chip';
+      cat.textContent = categoryName(r.category);
+      meta.appendChild(cat);
+    }
+
+    if (r.priority && r.priority !== 'medium') {
+      const p = document.createElement('span');
+      p.className = 'rem-priority ' + r.priority;
+      p.textContent = t('rem.priority.' + r.priority, r.priority);
+      meta.appendChild(p);
+    }
+
+    if (r.repeat && r.repeat !== 'none') {
+      const rep = document.createElement('span');
+      rep.className = 'rem-meta-item';
+      rep.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> ' + t('rem.repeat.' + r.repeat, r.repeat);
+      meta.appendChild(rep);
+    }
+
+    body.appendChild(meta);
+
+    if (r.description) {
+      const desc = document.createElement('div');
+      desc.className = 'rem-meta';
+      desc.style.marginTop = '0.35rem';
+      desc.style.color = 'var(--color-text-subtle)';
+      desc.textContent = global.utils.truncate(r.description, 120);
+      body.appendChild(desc);
+    }
+
+    item.appendChild(body);
+
+    /* Akcije */
+    const actions = document.createElement('div');
+    actions.className = 'rem-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'rem-icon-btn';
+    editBtn.setAttribute('aria-label', t('common.edit', 'Izmeni'));
+    editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>';
+    editBtn.addEventListener('click', function () { openForm(r); });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'rem-icon-btn danger';
+    delBtn.setAttribute('aria-label', t('common.delete', 'Obriši'));
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>';
+    delBtn.addEventListener('click', function () {
+      const ok = global.confirm(t('rem.deleteConfirm', 'Obrisati ovaj podsetnik?'));
+      if (!ok) return;
+      global.storage.delete(STORE, r.id).then(function () {
+        loadAll().then(function () { renderInto(view); if (global.home) global.home.refresh(); });
+      });
+    });
+    actions.appendChild(delBtn);
+
+    item.appendChild(actions);
+
+    return item;
+  }
+
+  /* ---------- FORMA (modal) ---------- */
+
+  let formOverlay = null;
+
+  function openForm(existing) {
+    if (formOverlay) return;
+    state.editingId = existing ? existing.id : null;
+
+    const isEdit = !!existing;
+    const item = existing ? Object.assign({}, existing) : {
+      title: '',
+      category: '',
+      date: global.utils.todayISO(),
+      time: '',
+      description: '',
+      priority: 'medium',
+      repeat: 'none',
+      done: false
+    };
+
+    formOverlay = document.createElement('div');
+    formOverlay.className = 'modal-overlay';
+    formOverlay.setAttribute('role', 'dialog');
+    formOverlay.setAttribute('aria-modal', 'true');
+
+    formOverlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + (isEdit ? t('rem.edit', 'Izmeni podsetnik') : t('rem.new', 'Novi podsetnik')) + '</h3>',
+      '  <form id="remForm" novalidate>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.title', 'Naziv') + ' *</label>',
+      '      <input class="input" type="text" name="title" required value="' + global.utils.escapeHtml(item.title) + '" />',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.category', 'Kategorija') + '</label>',
+      '      <select class="select" name="category">',
+      '        <option value="">' + t('rem.field.noCategory', '— Bez kategorije —') + '</option>',
+      '      </select>',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.date', 'Datum') + ' *</label>',
+      '        <input class="input" type="date" name="date" required value="' + global.utils.escapeHtml(item.date || '') + '" />',
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.time', 'Vreme') + '</label>',
+      '        <input class="input" type="time" name="time" value="' + global.utils.escapeHtml(item.time || '') + '" />',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.priority', 'Prioritet') + '</label>',
+      '        <select class="select" name="priority">',
+      '          <option value="low">' + t('rem.priority.low', 'Nizak') + '</option>',
+      '          <option value="medium">' + t('rem.priority.medium', 'Srednji') + '</option>',
+      '          <option value="high">' + t('rem.priority.high', 'Visok') + '</option>',
+      '        </select>',
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.repeat', 'Ponavljanje') + '</label>',
+      '        <select class="select" name="repeat">',
+      '          <option value="none">' + t('rem.repeat.none', 'Ne ponavlja se') + '</option>',
+      '          <option value="daily">' + t('rem.repeat.daily', 'Dnevno') + '</option>',
+      '          <option value="weekly">' + t('rem.repeat.weekly', 'Nedeljno') + '</option>',
+      '          <option value="monthly">' + t('rem.repeat.monthly', 'Mesečno') + '</option>',
+      '          <option value="yearly">' + t('rem.repeat.yearly', 'Godišnje') + '</option>',
+      '        </select>',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.description', 'Opis') + '</label>',
+      '      <textarea class="textarea" name="description">' + global.utils.escapeHtml(item.description || '') + '</textarea>',
+      '    </div>',
+      '    <div class="form-error" id="remFormError"></div>',
+      '    <div class="modal-actions">',
+      '      <button type="button" class="btn btn-secondary" id="remCancel">' + t('common.cancel', 'Otkaži') + '</button>',
+      '      <button type="submit" class="btn btn-primary">' + t('common.save', 'Sačuvaj') + '</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(formOverlay);
+
+    /* Popuni kategorije */
+    const catSelect = formOverlay.querySelector('select[name="category"]');
+    const allCats = getAllCategories();
+    allCats.forEach(function (c) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = lang() === 'en' ? (c.name_en || c.name_sr) : (c.name_sr || c.name_en);
+      if (item.category === c.id) opt.selected = true;
+      catSelect.appendChild(opt);
+    });
+
+    /* Postavi prioritet i repeat */
+    formOverlay.querySelector('select[name="priority"]').value = item.priority || 'medium';
+    formOverlay.querySelector('select[name="repeat"]').value = item.repeat || 'none';
+
+    formOverlay.querySelector('#remCancel').addEventListener('click', closeForm);
+
+    formOverlay.addEventListener('click', function (e) {
+      if (e.target === formOverlay) closeForm();
+    });
+
+    formOverlay.querySelector('#remForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitForm(formOverlay);
+    });
+
+    requestAnimationFrame(function () {
+      formOverlay.classList.add('show');
+    });
+  }
+
+  function closeForm() {
+    if (!formOverlay) return;
+    formOverlay.classList.remove('show');
+    setTimeout(function () {
+      if (formOverlay && formOverlay.parentNode) formOverlay.parentNode.removeChild(formOverlay);
+      formOverlay = null;
+    }, 200);
+  }
+
+  function submitForm(overlay) {
+    const form = overlay.querySelector('#remForm');
+    const errEl = overlay.querySelector('#remFormError');
+    errEl.textContent = '';
+
+    const data = {
+      title: form.title.value.trim(),
+      category: form.category.value,
+      date: form.date.value,
+      time: form.time.value,
+      priority: form.priority.value,
+      repeat: form.repeat.value,
+      description: form.description.value.trim()
+    };
+
+    if (!data.title) {
+      errEl.textContent = t('rem.err.title', 'Naziv je obavezan.');
+      return;
+    }
+    if (!data.date) {
+      errEl.textContent = t('rem.err.date', 'Datum je obavezan.');
+      return;
+    }
+
+    let record;
+    if (state.editingId) {
+      const existing = state.items.find(function (x) { return x.id === state.editingId; });
+      if (!existing) return;
+      record = Object.assign({}, existing, data);
+    } else {
+      record = Object.assign({
+        id: global.utils.uid('rem'),
+        done: false,
+        createdAt: new Date().toISOString()
+      }, data);
+    }
+
+    global.storage.save(STORE, record).then(function () {
+      closeForm();
+      loadAll().then(function () {
+        const view = document.getElementById('view-reminders');
+        if (view) renderInto(view);
+        if (global.home) global.home.refresh();
+      });
+    }).catch(function (err) {
+      errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
+    });
+  }
+
+  /* ---------- INIT ---------- */
+
+  function init() {
+    loadAll().then(function () {
+      const view = document.getElementById('view-reminders');
+      if (view) renderInto(view);
+    });
+
+    global.addEventListener('alatikapro:langchange', function () {
+      const view = document.getElementById('view-reminders');
+      if (view) renderInto(view);
+    });
+
+    if (global.router && global.router.onRouteChange) {
+      global.router.onRouteChange(function (route) {
+        toggleFabVisibility();
+        if (route === 'reminders') {
+          const view = document.getElementById('view-reminders');
+          if (view) renderInto(view);
+        }
+      });
+    }
+  }
+
+  global.reminders = {
+    init: init,
+    loadAll: loadAll,
+    DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
+    getAllCategories: getAllCategories,
+    addCustomCategory: addCustomCategory
+  };
+})(window);
