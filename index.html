@@ -1,1 +1,174 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6C5CE7" />
+  <meta name="description" content="Alatika Pro — lični organizator: podsetnici, računi, dokumenta, novac." />
+  <title>Alatika Pro</title>
 
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ZAGLAVLJE -->
+    <header class="app-header" id="appHeader">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">A</div>
+        <div class="brand-text">
+          <span class="brand-name">ALATIKA<span class="brand-pro"> PRO</span></span>
+          <span class="brand-tagline" data-i18n="app.tagline">Sve važno, na jednom mestu.</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="icon-btn" id="langToggle" aria-label="Jezik / Language" title="Jezik / Language">
+          <span id="langLabel">SR</span>
+        </button>
+        <button type="button" class="icon-btn" id="themeToggle" aria-label="Tema / Theme" title="Tema / Theme">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- SADRŽAJ -->
+    <main class="app-main" id="appMain" role="main">
+
+      <!-- POČETNA -->
+      <section class="view" id="view-home" data-view="home" hidden>
+        <div class="empty-state">
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12l9-9 9 9v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path>
+            </svg>
+          </div>
+          <h2 data-i18n="home.title">Početna</h2>
+          <p data-i18n="home.placeholder">Ovde će biti tvoj današnji pregled.</p>
+        </div>
+      </section>
+
+      <!-- PODSETNICI -->
+      <section class="view" id="view-reminders" data-view="reminders" hidden>
+        <div class="empty-state">
+          <div class="empty-icon color-amber" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path>
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+            </svg>
+          </div>
+          <h2 data-i18n="reminders.title">Podsetnici</h2>
+          <p data-i18n="reminders.placeholder">Ovde će biti tvoji podsetnici.</p>
+        </div>
+      </section>
+
+      <!-- RAČUNI -->
+      <section class="view" id="view-bills" data-view="bills" hidden>
+        <div class="empty-state">
+          <div class="empty-icon color-blue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 2h9l5 5v15H6z"></path>
+              <path d="M14 2v6h6"></path>
+              <path d="M9 13h6M9 17h6"></path>
+            </svg>
+          </div>
+          <h2 data-i18n="bills.title">Računi</h2>
+          <p data-i18n="bills.placeholder">Ovde će biti tvoji računi.</p>
+        </div>
+      </section>
+
+      <!-- MOJE STVARI -->
+      <section class="view" id="view-items" data-view="items" hidden>
+        <div class="empty-state">
+          <div class="empty-icon color-purple" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+              <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </div>
+          <h2 data-i18n="items.title">Moje stvari</h2>
+          <p data-i18n="items.placeholder">Ovde će biti tvoja dokumenta i fajlovi.</p>
+        </div>
+      </section>
+
+      <!-- NOVAC -->
+      <section class="view" id="view-money" data-view="money" hidden>
+        <div class="empty-state">
+          <div class="empty-icon color-green" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path>
+            </svg>
+          </div>
+          <h2 data-i18n="money.title">Novac</h2>
+          <p data-i18n="money.placeholder">Ovde će biti tvoji prihodi i rashodi.</p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- DONJA NAVIGACIJA -->
+    <nav class="bottom-nav" id="bottomNav" role="navigation" aria-label="Glavna navigacija">
+      <button type="button" class="nav-btn" data-route="home">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12l9-9 9 9v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"></path>
+        </svg>
+        <span data-i18n="nav.home">Početna</span>
+      </button>
+      <button type="button" class="nav-btn" data-route="reminders">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path>
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+        </svg>
+        <span data-i18n="nav.reminders">Podsetnici</span>
+      </button>
+      <button type="button" class="nav-btn" data-route="bills">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 2h9l5 5v15H6z"></path>
+          <path d="M14 2v6h6"></path>
+          <path d="M9 13h6M9 17h6"></path>
+        </svg>
+        <span data-i18n="nav.bills">Računi</span>
+      </button>
+      <button type="button" class="nav-btn" data-route="items">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="7" width="18" height="13" rx="2"></rect>
+          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        <span data-i18n="nav.items">Moje stvari</span>
+      </button>
+      <button type="button" class="nav-btn" data-route="money">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path>
+        </svg>
+        <span data-i18n="nav.money">Novac</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/router.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>
