@@ -1,0 +1,450 @@
+/* =========================================================
+   ALATIKA PRO — modules.css
+   Početna strana, kartice modula, zaglavlja modula, toast.
+   ========================================================= */
+
+/* =====================
+   POČETNA — POZDRAV
+   ===================== */
+.home-greeting {
+  padding: 0.25rem 0 0.75rem;
+}
+
+.home-hello {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.15rem;
+}
+
+.home-date {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+/* =====================
+   SEKCIJE
+   ===================== */
+.home-section {
+  margin-top: 1.25rem;
+}
+
+.home-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.6rem;
+  letter-spacing: 0.01em;
+}
+
+/* =====================
+   DANAŠNJI PREGLED
+   ===================== */
+.home-today {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.today-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.08s ease;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.today-card:active {
+  transform: scale(0.985);
+}
+
+.today-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--color-surface-2);
+  color: var(--color-brand);
+}
+
+.today-icon.color-amber  { background-color: rgba(245, 158, 11, 0.12);  color: var(--color-module-reminders); }
+.today-icon.color-blue   { background-color: rgba(59, 130, 246, 0.12);  color: var(--color-module-bills); }
+.today-icon.color-purple { background-color: rgba(139, 92, 246, 0.12);  color: var(--color-module-items); }
+.today-icon.color-green  { background-color: rgba(34, 197, 94, 0.12);   color: var(--color-module-money); }
+
+.today-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.today-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-sub {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+/* =====================
+   ČETIRI KARTICE MODULA
+   ===================== */
+.home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.module-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  min-height: 120px;
+  position: relative;
+  overflow: hidden;
+}
+
+.module-card:active {
+  transform: scale(0.98);
+}
+
+.module-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.module-card .mc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.module-card .mc-icon.reminders { background-color: var(--color-module-reminders); }
+.module-card .mc-icon.bills     { background-color: var(--color-module-bills); }
+.module-card .mc-icon.items     { background-color: var(--color-module-items); }
+.module-card .mc-icon.money     { background-color: var(--color-module-money); }
+
+.module-card .mc-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.module-card .mc-sub {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}
+
+.module-card .mc-lock {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+}
+
+/* =====================
+   BRZE AKCIJE
+   ===================== */
+.home-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.quick-action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.08s ease;
+}
+
+.quick-action:active {
+  transform: scale(0.97);
+}
+
+.quick-action .qa-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.quick-action .qa-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* =====================
+   KURSNA LISTA (placeholder do Sesije 6)
+   ===================== */
+.rates-card {
+  text-align: center;
+  padding: 1.25rem 1rem;
+}
+
+/* =====================
+   MODULE HEADER (Podsetnici, Računi, ...)
+   ===================== */
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.25rem 0 0.75rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: 0.75rem;
+}
+
+.module-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.module-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #fff;
+}
+
+.module-icon.color-amber  { background-color: var(--color-module-reminders); }
+.module-icon.color-blue   { background-color: var(--color-module-bills); }
+.module-icon.color-purple { background-color: var(--color-module-items); }
+.module-icon.color-green  { background-color: var(--color-module-money); }
+
+.module-title-wrap h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.module-title-wrap p {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* =====================
+   TOAST
+   ===================== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height) + 1rem);
+  transform: translateX(-50%) translateY(20px);
+  z-index: 8000;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  max-width: 90vw;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* =====================
+   MODAL — LISTA KARTICA ZA ZAKLJUČAVANJE
+   ===================== */
+.lock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.lock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+}
+
+.lock-row-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.lock-row-label .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.lock-row-label .dot.reminders { background-color: var(--color-module-reminders); }
+.lock-row-label .dot.bills     { background-color: var(--color-module-bills); }
+.lock-row-label .dot.items     { background-color: var(--color-module-items); }
+.lock-row-label .dot.money     { background-color: var(--color-module-money); }
+
+/* Prekidač (switch) */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--color-border);
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  top: 3px;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.switch input:checked + .slider {
+  background-color: var(--color-brand);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(18px);
+}
+
+/* =====================
+   ZAKLJUČANA KARTICA (prekrivač)
+   ===================== */
+.locked-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+}
+
+.locked-view .locked-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background-color: var(--color-surface-2);
+  color: var(--color-text-subtle);
+}
+
+.locked-view h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.locked-view p {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  max-width: 30ch;
+}
+
+/* =====================
+   MALE PRILAGODBE
+   ===================== */
+@media (max-width: 360px) {
+  .home-cards {
+    gap: 0.5rem;
+  }
+  .module-card {
+    padding: 0.85rem;
+    min-height: 108px;
+  }
+  .module-card .mc-title { font-size: 0.9rem; }
+  .module-card .mc-sub { font-size: 0.72rem; }
+}
