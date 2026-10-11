@@ -13,8 +13,6 @@
   const translations = {
     sr: {
       'app.tagline': 'Sve važno, na jednom mestu.',
-      'app.name': 'ALATIKA',
-      'app.pro': ' PRO',
 
       'nav.home': 'Početna',
       'nav.reminders': 'Podsetnici',
@@ -22,19 +20,43 @@
       'nav.items': 'Moje stvari',
       'nav.money': 'Novac',
 
-      'home.title': 'Početna',
-      'home.placeholder': 'Ovde će biti tvoj današnji pregled.',
+      'home.greet.morning': 'Dobro jutro!',
+      'home.greet.day': 'Zdravo!',
+      'home.greet.evening': 'Dobro veče!',
+      'home.greet.night': 'Laku noć!',
+      'home.today': 'Današnji pregled',
+      'home.modules': 'Moduli',
+      'home.rates': 'Kursna lista',
+      'home.ratesPlaceholder': 'Kursna lista dolazi u Sesiji 6.',
+      'home.quickActions': 'Brze akcije',
+      'home.today.empty': 'Nema obaveza za danas.',
+      'home.today.emptySub': 'Uživaj u slobodnom danu.',
+
+      'home.mod.reminders.sub': 'Obaveze i rokovi.',
+      'home.mod.bills.sub': 'Arhiva i plaćanja.',
+      'home.mod.items.sub': 'Dokumenta i fajlovi.',
+      'home.mod.money.sub': 'Prihodi i rashodi.',
+
+      'home.action.addReminder': 'Novi podsetnik',
+      'home.action.addBill': 'Novi račun',
+      'home.action.addItem': 'Novi dokument',
+      'home.action.addMoney': 'Nova transakcija',
+      'home.action.soon': 'Ova funkcija dolazi u narednoj sesiji.',
 
       'reminders.title': 'Podsetnici',
+      'reminders.subtitle': 'Ne zaboravi važne obaveze.',
       'reminders.placeholder': 'Ovde će biti tvoji podsetnici.',
 
       'bills.title': 'Računi',
+      'bills.subtitle': 'Arhiva računa i statusa plaćanja.',
       'bills.placeholder': 'Ovde će biti tvoji računi.',
 
       'items.title': 'Moje stvari',
+      'items.subtitle': 'Važni dokumenti uvek pri ruci.',
       'items.placeholder': 'Ovde će biti tvoja dokumenta i fajlovi.',
 
       'money.title': 'Novac',
+      'money.subtitle': 'Prihodi, rashodi i budžet.',
       'money.placeholder': 'Ovde će biti tvoji prihodi i rashodi.',
 
       'common.save': 'Sačuvaj',
@@ -46,18 +68,36 @@
       'common.close': 'Zatvori',
       'common.confirm': 'Potvrdi',
       'common.back': 'Nazad',
-      'common.next': 'Sledeće',
       'common.yes': 'Da',
       'common.no': 'Ne',
       'common.loading': 'Učitavanje...',
       'common.error': 'Greška',
       'common.success': 'Uspešno',
-      'common.empty': 'Nema podataka'
+      'common.empty': 'Nema podataka',
+      'common.ok': 'U redu',
+
+      'pin.title': 'Unesi PIN',
+      'pin.set': 'Postavi PIN',
+      'pin.setSub': 'Izaberi 4-cifreni PIN.',
+      'pin.confirm': 'Potvrdi PIN',
+      'pin.confirmSub': 'Ponovo unesi isti PIN.',
+      'pin.old': 'Stari PIN',
+      'pin.oldSub': 'Unesi postojeći PIN.',
+      'pin.new': 'Novi PIN',
+      'pin.enter4': 'Unesi 4-cifreni PIN.',
+      'pin.wrong': 'Pogrešan PIN. Pokušaj ponovo.',
+      'pin.mismatch': 'PIN-ovi se ne poklapaju.',
+      'pin.tooMany': 'Previše pokušaja. Pokušaj za ',
+      'pin.setFirst': 'Prvo postavi PIN u Podešavanjima.',
+      'pin.locked': 'Kartica je zaključana.',
+      'pin.unlocked': 'Kartica je otključana.',
+      'pin.unlock.reminders': 'Otključaj Podsetnike',
+      'pin.unlock.bills': 'Otključaj Račune',
+      'pin.unlock.items': 'Otključaj Moje stvari',
+      'pin.unlock.money': 'Otključaj Novac'
     },
     en: {
       'app.tagline': 'Everything important, in one place.',
-      'app.name': 'ALATIKA',
-      'app.pro': ' PRO',
 
       'nav.home': 'Home',
       'nav.reminders': 'Reminders',
@@ -65,19 +105,43 @@
       'nav.items': 'My Items',
       'nav.money': 'Money',
 
-      'home.title': 'Home',
-      'home.placeholder': 'Your daily overview will appear here.',
+      'home.greet.morning': 'Good morning!',
+      'home.greet.day': 'Hello!',
+      'home.greet.evening': 'Good evening!',
+      'home.greet.night': 'Good night!',
+      'home.today': "Today's overview",
+      'home.modules': 'Modules',
+      'home.rates': 'Exchange rates',
+      'home.ratesPlaceholder': 'Exchange rates arrive in Session 6.',
+      'home.quickActions': 'Quick actions',
+      'home.today.empty': 'No tasks for today.',
+      'home.today.emptySub': 'Enjoy your free day.',
+
+      'home.mod.reminders.sub': 'Tasks and deadlines.',
+      'home.mod.bills.sub': 'Archive and payments.',
+      'home.mod.items.sub': 'Documents and files.',
+      'home.mod.money.sub': 'Income and expenses.',
+
+      'home.action.addReminder': 'New reminder',
+      'home.action.addBill': 'New bill',
+      'home.action.addItem': 'New document',
+      'home.action.addMoney': 'New transaction',
+      'home.action.soon': 'This feature arrives in the next session.',
 
       'reminders.title': 'Reminders',
+      'reminders.subtitle': "Don't forget important tasks.",
       'reminders.placeholder': 'Your reminders will appear here.',
 
       'bills.title': 'Bills',
+      'bills.subtitle': 'Archive and payment status.',
       'bills.placeholder': 'Your bills will appear here.',
 
       'items.title': 'My Items',
+      'items.subtitle': 'Important documents always at hand.',
       'items.placeholder': 'Your documents and files will appear here.',
 
       'money.title': 'Money',
+      'money.subtitle': 'Income, expenses, and budget.',
       'money.placeholder': 'Your income and expenses will appear here.',
 
       'common.save': 'Save',
@@ -89,13 +153,33 @@
       'common.close': 'Close',
       'common.confirm': 'Confirm',
       'common.back': 'Back',
-      'common.next': 'Next',
       'common.yes': 'Yes',
       'common.no': 'No',
       'common.loading': 'Loading...',
       'common.error': 'Error',
       'common.success': 'Success',
-      'common.empty': 'No data'
+      'common.empty': 'No data',
+      'common.ok': 'OK',
+
+      'pin.title': 'Enter PIN',
+      'pin.set': 'Set PIN',
+      'pin.setSub': 'Choose a 4-digit PIN.',
+      'pin.confirm': 'Confirm PIN',
+      'pin.confirmSub': 'Re-enter the same PIN.',
+      'pin.old': 'Old PIN',
+      'pin.oldSub': 'Enter your current PIN.',
+      'pin.new': 'New PIN',
+      'pin.enter4': 'Enter your 4-digit PIN.',
+      'pin.wrong': 'Wrong PIN. Try again.',
+      'pin.mismatch': 'PINs do not match.',
+      'pin.tooMany': 'Too many attempts. Try again in ',
+      'pin.setFirst': 'First set a PIN in Settings.',
+      'pin.locked': 'Card locked.',
+      'pin.unlocked': 'Card unlocked.',
+      'pin.unlock.reminders': 'Unlock Reminders',
+      'pin.unlock.bills': 'Unlock Bills',
+      'pin.unlock.items': 'Unlock My Items',
+      'pin.unlock.money': 'Unlock Money'
     }
   };
 
