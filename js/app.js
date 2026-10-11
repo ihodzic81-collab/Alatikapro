@@ -1,7 +1,6 @@
 /* =========================================================
    ALATIKA PRO — app.js
    Glavna tačka pokretanja aplikacije.
-   Povezuje sve module: i18n, state, router, storage.
    ========================================================= */
 
 (function (global) {
@@ -55,8 +54,14 @@
     global.router.init();
   }
 
-  function applyInitialStateToStorage() {
-    if (!global.appState || !global.storage) return;
+  function initHome() {
+    if (global.home && global.home.init) {
+      global.home.init();
+    }
+  }
+
+  function applyInitialState() {
+    if (!global.appState) return;
     const s = global.appState.state;
     s.lang = global.i18n ? global.i18n.getLang() : 'sr';
     s.loaded = true;
@@ -65,7 +70,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — skeleton spreman.',
+      '%cAlatika Pro%c v1.0.0 — sesija 2 spremna.',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -76,7 +81,8 @@
       initTheme();
       initLanguage();
       initRouter();
-      applyInitialStateToStorage();
+      initHome();
+      applyInitialState();
       logStatus();
     } catch (err) {
       if (global.console && console.error) {
