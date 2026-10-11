@@ -1,0 +1,177 @@
+/* =========================================================
+   ALATIKA PRO — theme.css
+   Boje, senke, svetla i tamna tema.
+   ========================================================= */
+
+:root {
+  /* BREND */
+  --color-brand:         #6C5CE7;
+  --color-brand-strong:  #5A4BD1;
+  --color-brand-soft:    #EFEBFF;
+  --color-brand-ring:    rgba(108, 92, 231, 0.20);
+
+  /* MODULI */
+  --color-module-reminders: #F59E0B; /* amber */
+  --color-module-bills:     #3B82F6; /* plava */
+  --color-module-items:     #8B5CF6; /* ljubičasta */
+  --color-module-money:     #22C55E; /* zelena */
+
+  /* STATUS */
+  --color-success: #22C55E;
+  --color-danger:  #EF4444;
+  --color-warning: #F59E0B;
+  --color-info:    #3B82F6;
+
+  /* TIPOGRAFIJA */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* RADIUS */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* RAZMACI */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.75rem;
+  --space-lg: 1rem;
+  --space-xl: 1.5rem;
+  --space-2xl: 2rem;
+
+  /* LAYOUT */
+  --header-height: 64px;
+  --bottom-nav-height: 68px;
+  --max-width: 640px;
+}
+
+/* =========================================================
+   SVETLA TEMA (podrazumevano)
+   ========================================================= */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg:            #F5F6FA;
+  --color-surface:       #FFFFFF;
+  --color-surface-2:     #F1F2F7;
+  --color-surface-3:     #E9EAF2;
+
+  --color-text:          #1A1B2E;
+  --color-text-muted:    #5A5C73;
+  --color-text-subtle:   #8A8CA0;
+  --color-text-invert:   #FFFFFF;
+
+  --color-border:        #D8DAE5;
+  --color-border-subtle: #ECEDF3;
+
+  --shadow-sm: 0 1px 2px rgba(20, 22, 45, 0.04),
+               0 2px 8px rgba(20, 22, 45, 0.05);
+  --shadow-md: 0 4px 12px rgba(20, 22, 45, 0.08),
+               0 1px 3px rgba(20, 22, 45, 0.06);
+  --shadow-lg: 0 12px 28px rgba(20, 22, 45, 0.12),
+               0 4px 10px rgba(20, 22, 45, 0.06);
+}
+
+/* =========================================================
+   TAMNA TEMA
+   ========================================================= */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-brand:         #8B7BF0;
+  --color-brand-strong:  #A093F5;
+  --color-brand-soft:    #2A2545;
+  --color-brand-ring:    rgba(139, 123, 240, 0.30);
+
+  --color-bg:            #0F1018;
+  --color-surface:       #181A26;
+  --color-surface-2:     #20222F;
+  --color-surface-3:     #2A2C3D;
+
+  --color-text:          #ECEDF5;
+  --color-text-muted:    #A0A2B8;
+  --color-text-subtle:   #6E7088;
+  --color-text-invert:   #0F1018;
+
+  --color-border:        #2E3145;
+  --color-border-subtle: #232636;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35),
+               0 2px 8px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.40),
+               0 1px 3px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55),
+               0 4px 10px rgba(0, 0, 0, 0.35);
+
+  --color-module-reminders: #FBBF24;
+  --color-module-bills:     #60A5FA;
+  --color-module-items:     #A78BFA;
+  --color-module-money:     #4ADE80;
+
+  --color-success: #4ADE80;
+  --color-danger:  #F87171;
+  --color-warning: #FBBF24;
+  --color-info:    #60A5FA;
+}
+
+/* =========================================================
+   GLOBALNA TRANZICIJA PRI PROMENI TEME
+   ========================================================= */
+:root {
+  transition: background-color 0.2s ease;
+}
+
+body,
+.app-header,
+.app-main,
+.card,
+.bottom-nav,
+.input,
+.textarea,
+.select,
+.icon-btn,
+.btn-secondary,
+.btn-ghost {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* =========================================================
+   PODRŠKA ZA SYSTEM PREFERENCE
+   (koristi se kada korisnik nije ručno izabrao temu)
+   ========================================================= */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+
+    --color-brand:         #8B7BF0;
+    --color-brand-strong:  #A093F5;
+    --color-brand-soft:    #2A2545;
+
+    --color-bg:            #0F1018;
+    --color-surface:       #181A26;
+    --color-surface-2:     #20222F;
+    --color-surface-3:     #2A2C3D;
+
+    --color-text:          #ECEDF5;
+    --color-text-muted:    #A0A2B8;
+    --color-text-subtle:   #6E7088;
+
+    --color-border:        #2E3145;
+    --color-border-subtle: #232636;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
