@@ -1,7 +1,7 @@
 /* =========================================================
    ALATIKA PRO — currencies.js
    Lista od 30 najpopularnijih svetskih valuta.
-   Koristi se u modulima Računi, Novac i Konverter.
+   + pomoćne funkcije za radne dane (za čekove).
    ========================================================= */
 
 (function (global) {
@@ -76,6 +76,46 @@
     return !!getByCode(code);
   }
 
+  /* ---------- RADNI DANI (za čekove) ---------- */
+
+  /**
+   * Da li je datum subota ili nedelja?
+   */
+  function isWeekend(date) {
+    const d = date.getDay();
+    return d === 0 || d === 6;
+  }
+
+  /**
+   * Dodaje N radnih dana na dati datum.
+   * Preskače subote i nedelje.
+   */
+  function addBusinessDays(date, n) {
+    const result = new Date(date.getTime());
+    let added = 0;
+    while (added < n) {
+      result.setDate(result.getDate() + 1);
+      if (!isWeekend(result)) added += 1;
+    }
+    return result;
+  }
+
+  /**
+   * Vraća ISO datum N radnih dana od datog ISO datuma.
+   */
+  function addBusinessDaysISO(isoDate, n) {
+    if (!isoDate) return '';
+    const parts = String(isoDate).split('-');
+    if (parts.length !== 3) return '';
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (isNaN(d.getTime())) return '';
+    const result = addBusinessDays(d, n);
+    const y = result.getFullYear();
+    const m = String(result.getMonth() + 1).padStart(2, '0');
+    const day = String(result.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
   global.currencies = {
     getAll: getAll,
     getByCode: getByCode,
@@ -84,6 +124,9 @@
     getName: getName,
     getLabel: getLabel,
     isValid: isValid,
-    DEFAULT_CODE: DEFAULT_CODE
+    DEFAULT_CODE: DEFAULT_CODE,
+    addBusinessDays: addBusinessDays,
+    addBusinessDaysISO: addBusinessDaysISO,
+    isWeekend: isWeekend
   };
 })(window);
