@@ -1,9 +1,9 @@
 /* =========================================================
    ALATIKA PRO — rates-widget.js
    Kursna lista (NBS):
-   - Mali widget za Početnu
+   - Mali widget za Početnu (sakriva se ako NBS ne radi)
    - Puna stranica unutar modula Novac
-   - Timeout prikaz ako NBS ne odgovori
+   - Timeout prikaz
    ========================================================= */
 
 (function (global) {
@@ -78,44 +78,42 @@
 
   /* ---------- HOME WIDGET ---------- */
 
+  /**
+   * Renderuje mali widget na Početnoj.
+   * Ako NBS ne radi — sakrije ceo #homeRatesSection.
+   */
   function renderHomeWidget(container) {
     if (!container) return;
 
+    /* Prikaži loading samo kratko */
     container.innerHTML = '<div class="rates-widget-loading">' + t('rates.loading', 'Učitavanje kursa...') + '</div>';
 
-    /* Timeout prikaz ako NBS ne odgovori za 12 sekundi */
     const timeoutTimer = setTimeout(function () {
-      const stillLoading = container.querySelector('.rates-widget-loading');
-      if (stillLoading) {
-        showHomeError(container, t('rates.timeout', 'Kurs trenutno nije dostupan. Proverite internet vezu.'));
-      }
-    }, 12000);
+      /* Ako NBS ne odgovori za 8 sekundi → sakrij sekciju */
+      hideHomeRatesSection();
+    }, 8000);
 
     loadRates().then(function () {
       clearTimeout(timeoutTimer);
       renderHomeWidgetContent(container);
     }).catch(function () {
       clearTimeout(timeoutTimer);
-      showHomeError(container, t('rates.unavailable', 'Kurs trenutno nije dostupan.'));
+      /* Ako ne radi — sakrij sekciju, ne prikazuj grešku */
+      hideHomeRatesSection();
     });
   }
 
-  function showHomeError(container, message) {
-    container.innerHTML = [
-      '<div class="rates-widget">',
-      '  <div class="rates-widget-error">',
-      '    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
-      '    <span>' + global.utils.escapeHtml(message) + '</span>',
-      '    <button type="button" class="rates-retry-btn" data-retry>' + t('rates.retry', 'Pokušaj ponovo') + '</button>',
-      '  </div>',
-      '</div>'
-    ].join('');
+  function hideHomeRatesSection() {
+    const section = document.getElementById('homeRatesSection');
+    if (section) {
+      section.style.display = 'none';
+    }
+  }
 
-    const retryBtn = container.querySelector('[data-retry]');
-    if (retryBtn) {
-      retryBtn.addEventListener('click', function () {
-        renderHomeWidget(container);
-      });
+  function showHomeRatesSection() {
+    const section = document.getElementById('homeRatesSection');
+    if (section) {
+      section.style.display = '';
     }
   }
 
@@ -124,9 +122,12 @@
     const rates = state.rates;
 
     if (!rates) {
-      showHomeError(container, t('rates.unavailable', 'Kurs nije dostupan.'));
+      hideHomeRatesSection();
       return;
     }
+
+    /* Prikaži sekciju */
+    showHomeRatesSection();
 
     const rows = favorites.map(function (code) {
       const r = rates[code];
@@ -140,6 +141,12 @@
         '</div>'
       ].join('');
     }).filter(Boolean).join('');
+
+    /* Ako nema nijedne valute — sakrij sekciju */
+    if (!rows) {
+      hideHomeRatesSection();
+      return;
+    }
 
     let dateText = '';
     if (state.date) {
@@ -227,7 +234,7 @@
       const timer = setTimeout(function () {
         info.innerHTML = '<div class="rates-error">' + t('rates.timeout', 'Kurs trenutno nije dostupan.') + '</div>';
         listWrap.innerHTML = '';
-      }, 12000);
+      }, 10000);
 
       loadRates(force).then(function () {
         clearTimeout(timer);
