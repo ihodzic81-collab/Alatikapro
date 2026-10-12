@@ -1,16 +1,19 @@
 /* =========================================================
    ALATIKA PRO — reminders.js
    Modul Podsetnici:
-   - Lista, filteri, pretraga, grupisanje po datumu
+   - Lista, filteri, pretraga (sa očuvanjem fokusa)
    - Dodavanje / izmena / brisanje / završavanje
    - Kategorije (10 početnih + custom)
    - Prioritet, ponavljanje, opis, vreme
+   - "Podseti me ranije" (notifyDaysBefore)
+   - Rođendani sa automatskim računanjem godina
    ========================================================= */
 
 (function (global) {
   'use strict';
 
   const STORE = 'reminders';
+  const BIRTHDAY_CATEGORY = 'family';
 
   const DEFAULT_CATEGORIES = [
     { id: 'bills',     name_sr: 'Računi i plaćanja',       name_en: 'Bills & payments' },
@@ -27,10 +30,9 @@
 
   const LS_CUSTOM_CATS = 'reminders.customCats';
 
-  /* ---------- STANJE ---------- */
   const state = {
     items: [],
-    filter: 'all',       /* all | active | done | overdue */
+    filter: 'all',
     search: '',
     editingId: null
   };
@@ -67,12 +69,112 @@
     return id;
   }
 
+  /* ---------- ROĐENDANSKA LOGIKA ---------- */
+
+  /**
+   * Parsira birthDate string.
+   * Podržava:
+   *   - "YYYY-MM-DD" (puna godina)
+   *   - "--MM-DD"    (bez godine, samo dan i mesec)
+   * Vraća: { year: number|null, month: number (1-12), day: number (1-31) }
+   */
+  function parseBirthDate(str) {
+    if (!str) return null;
+    const s = String(str).trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+    }
+    m = s.match(/^--(\d{2})-(\d{2})$/);
+    if (m) {
+      return { year: null, month: Number(m[1]), day: Number(m[2]) };
+    }
+    return null;
+  }
+
+  /**
+   * Vraća sledeći rođendan (ISO datum "YYYY-MM-DD") za zadati birthDate.
+   * Ako je rođendan danas ili kasnije ove godine, vraća ovogodišnji datum.
+   * Ako je već prošao, vraća sledeće godine.
+   */
+  function nextBirthdayISO(birthInfo) {
+    if (!birthInfo) return null;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    let target = new Date(now.getFullYear(), birthInfo.month - 1, birthInfo.day);
+    if (isNaN(target.getTime())) return null;
+
+    if (target < today) {
+      target = new Date(now.getFullYear() + 1, birthInfo.month - 1, birthInfo.day);
+    }
+    return global.utils.toISODate(target);
+  }
+
+  /**
+   * Vraća trenutne godine ili null ako godina nije poznata.
+   * Računa: trenutna godina - godina rođenja, uz korekciju ako rođendan još nije prošao.
+   */
+  function currentAge(birthInfo) {
+    if (!birthInfo || !birthInfo.year) return null;
+    const now = new Date();
+    let age = now.getFullYear() - birthInfo.year;
+    const thisYearBday = new Date(now.getFullYear(), birthInfo.month - 1, birthInfo.day);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (thisYearBday > today) age -= 1;
+    return age >= 0 ? age : null;
+  }
+
+  /**
+   * Godine koje će osoba napuniti na naredni rođendan.
+   */
+  function nextAge(birthInfo) {
+    if (!birthInfo || !birthInfo.year) return null;
+    const now = new Date();
+    let age = now.getFullYear() - birthInfo.year;
+    const thisYearBday = new Date(now.getFullYear(), birthInfo.month - 1, birthInfo.day);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (thisYearBday < today) age += 1;
+    return age >= 0 ? age : null;
+  }
+
+  /**
+   * Da li je podsetnik rođendan?
+   */
+  function isBirthday(rem) {
+    return rem && rem.isBirthday === true;
+  }
+
+  /**
+   * Efektivni datum podsetnika — ako je rođendan i ima birthDate,
+   * datum se automatski računa za naredni rođendan.
+   */
+  function effectiveDate(rem) {
+    if (isBirthday(rem) && rem.birthDate) {
+      const bInfo = parseBirthDate(rem.birthDate);
+      const next = nextBirthdayISO(bInfo);
+      if (next) return next;
+    }
+    return rem.date || '';
+  }
+
+  /**
+   * Datum od kog treba prikazati podsetnik (uzimajući u obzir notifyDaysBefore).
+   */
+  function visibleFromDate(rem) {
+    const effDate = effectiveDate(rem);
+    const notify = Number(rem.notifyDaysBefore) || 0;
+    if (!effDate) return '';
+    if (notify <= 0) return effDate;
+    return global.utils.addDays(effDate, -notify);
+  }
+
   /* ---------- UČITAVANJE ---------- */
 
   function loadAll() {
     return global.storage.loadAll(STORE).then(function (list) {
       state.items = (list || []).sort(function (a, b) {
-        return (a.date || '').localeCompare(b.date || '');
+        return (effectiveDate(a) || '').localeCompare(effectiveDate(b) || '');
       });
       return state.items;
     });
@@ -89,14 +191,21 @@
     } else if (state.filter === 'done') {
       out = out.filter(function (r) { return r.done; });
     } else if (state.filter === 'overdue') {
-      out = out.filter(function (r) { return !r.done && r.date && r.date < today; });
+      out = out.filter(function (r) {
+        const eff = effectiveDate(r);
+        return !r.done && eff && eff < today;
+      });
     }
 
     if (state.search) {
       const q = state.search.toLowerCase();
       out = out.filter(function (r) {
+        const eff = effectiveDate(r);
         return (r.title || '').toLowerCase().indexOf(q) !== -1 ||
                (r.description || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.date || '').indexOf(q) !== -1 ||
+               (r.time || '').indexOf(q) !== -1 ||
+               (r.birthDate || '').indexOf(q) !== -1 ||
                categoryName(r.category).toLowerCase().indexOf(q) !== -1;
       });
     }
@@ -119,26 +228,61 @@
     };
 
     list.forEach(function (r) {
+      const eff = effectiveDate(r);
+      const visible = visibleFromDate(r);
+
       if (r.done) { groups.done.push(r); return; }
-      if (!r.date) { groups.later.push(r); return; }
-      if (r.date < today) { groups.overdue.push(r); return; }
-      if (r.date === today) { groups.today.push(r); return; }
-      if (r.date === tomorrow) { groups.tomorrow.push(r); return; }
-      if (r.date <= in7) { groups.next7.push(r); return; }
+      if (!eff) { groups.later.push(r); return; }
+
+      if (eff < today) { groups.overdue.push(r); return; }
+      if (eff === today) { groups.today.push(r); return; }
+      if (visible === today || eff === tomorrow) { groups.tomorrow.push(r); return; }
+      if (visible <= in7 || eff <= in7) { groups.next7.push(r); return; }
       groups.later.push(r);
     });
 
     return groups;
   }
 
-  /* ---------- RENDER ---------- */
+  /* ---------- RENDER (sa očuvanjem fokusa) ---------- */
 
   function renderInto(view) {
-    const header = view.querySelector('.module-header');
-    view.innerHTML = '';
-    if (header) view.appendChild(header);
+    /* Sačuvaj postojeće delove ako postoje (da ne pravimo input iznova) */
+    let header = view.querySelector('.module-header');
+    let filters = view.querySelector('.rem-filters');
+    let searchWrap = view.querySelector('.rem-search');
+    let listWrap = view.querySelector('.rem-list');
 
-    /* Filteri */
+    /* Ako nema još ničega (prvi render), obriši i napravi sve */
+    if (!header || !filters || !searchWrap || !listWrap) {
+      view.innerHTML = '';
+      if (header) view.appendChild(header);
+      buildFilters(view);
+      buildSearch(view);
+      listWrap = document.createElement('div');
+      listWrap.className = 'rem-list';
+      view.appendChild(listWrap);
+    }
+
+    renderList(listWrap);
+
+    /* FAB */
+    let fab = document.getElementById('remFab');
+    if (!fab) {
+      fab = document.createElement('button');
+      fab.type = 'button';
+      fab.id = 'remFab';
+      fab.className = 'fab';
+      fab.setAttribute('aria-label', t('rem.add', 'Dodaj podsetnik'));
+      fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+      document.body.appendChild(fab);
+    }
+    fab.onclick = function () { openForm(null); };
+
+    toggleFabVisibility();
+  }
+
+  function buildFilters(view) {
     const filters = document.createElement('div');
     filters.className = 'rem-filters';
     const filterDefs = [
@@ -154,13 +298,20 @@
       btn.textContent = f.label;
       btn.addEventListener('click', function () {
         state.filter = f.id;
-        renderInto(view);
+        /* Samo osveži aktivno stanje filtera i listu */
+        const parent = btn.parentNode;
+        parent.querySelectorAll('.rem-filter').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        const listWrap = view.querySelector('.rem-list');
+        if (listWrap) renderList(listWrap);
       });
       filters.appendChild(btn);
     });
     view.appendChild(filters);
+  }
 
-    /* Pretraga */
+  function buildSearch(view) {
     const search = document.createElement('div');
     search.className = 'rem-search';
     search.innerHTML = [
@@ -168,13 +319,19 @@
       '<input type="search" id="remSearchInput" placeholder="' + t('rem.search', 'Pretraga...') + '" value="' + global.utils.escapeHtml(state.search) + '" />'
     ].join('');
     view.appendChild(search);
-    const inp = search.querySelector('#remSearchInput');
-    inp.addEventListener('input', global.utils.debounce(function () {
-      state.search = inp.value.trim();
-      renderInto(view);
-    }, 200));
 
-    /* Lista */
+    const inp = search.querySelector('#remSearchInput');
+    const debounced = global.utils.debounce(function () {
+      state.search = inp.value.trim();
+      const listWrap = view.querySelector('.rem-list');
+      if (listWrap) renderList(listWrap);
+    }, 180);
+    inp.addEventListener('input', debounced);
+  }
+
+  function renderList(listWrap) {
+    listWrap.innerHTML = '';
+
     const filtered = applyFilter(state.items);
     const groups = groupByDate(filtered);
 
@@ -204,10 +361,10 @@
       wrap.appendChild(title);
 
       items.forEach(function (r) {
-        wrap.appendChild(buildItem(r, view));
+        wrap.appendChild(buildItem(r, listWrap));
       });
 
-      view.appendChild(wrap);
+      listWrap.appendChild(wrap);
     });
 
     if (totalShown === 0) {
@@ -216,36 +373,22 @@
       empty.textContent = state.search
         ? t('rem.emptySearch', 'Nema rezultata za pretragu.')
         : t('rem.empty', 'Još uvek nemaš podsetnika. Dodaj prvi!');
-      view.appendChild(empty);
+      listWrap.appendChild(empty);
     }
-
-    /* FAB */
-    let fab = document.getElementById('remFab');
-    if (!fab) {
-      fab = document.createElement('button');
-      fab.type = 'button';
-      fab.id = 'remFab';
-      fab.className = 'fab';
-      fab.setAttribute('aria-label', t('rem.add', 'Dodaj podsetnik'));
-      fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
-      document.body.appendChild(fab);
-    }
-    fab.onclick = function () { openForm(null); };
-
-    /* FAB se vidi samo na reminders ruti */
-    toggleFabVisibility();
   }
 
-  function toggleFabVisibility() {
-    const fab = document.getElementById('remFab');
-    if (!fab) return;
-    const route = global.router && global.router.current ? global.router.current() : 'home';
-    fab.style.display = route === 'reminders' ? '' : 'none';
-  }
+  function buildItem(r, listWrap) {
+    const eff = effectiveDate(r);
+    const today = global.utils.todayISO();
+    const birthday = isBirthday(r);
 
-  function buildItem(r, view) {
     const item = document.createElement('div');
-    item.className = 'rem-item' + (r.done ? ' done' : '');
+    item.className = 'rem-item' + (r.done ? ' done' : '') + (birthday ? ' is-birthday' : '');
+
+    /* Birthday-today posebna klasa */
+    if (birthday && eff === today && !r.done) {
+      item.classList.add('birthday-today');
+    }
 
     /* Checkbox */
     const check = document.createElement('button');
@@ -254,10 +397,15 @@
     check.setAttribute('aria-label', r.done ? t('rem.markActive', 'Vrati u aktivne') : t('rem.markDone', 'Označi kao završeno'));
     check.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
     check.addEventListener('click', function () {
+      /* Za rođendane — ne dozvoli "done" preko checkboxa (rođendan se ponavlja) */
+      if (birthday) {
+        if (global.home) global.home.showToast(t('rem.birthday.repeating', 'Rođendan se ponavlja svake godine.'));
+        return;
+      }
       r.done = !r.done;
       r.doneAt = r.done ? new Date().toISOString() : null;
       global.storage.save(STORE, r).then(function () {
-        renderInto(view);
+        if (listWrap) renderList(listWrap);
         if (global.home) global.home.refresh();
       });
     });
@@ -269,23 +417,59 @@
 
     const title = document.createElement('div');
     title.className = 'rem-title';
-    title.textContent = r.title || '';
+
+    /* Prikaz naslova — specijalan za rođendane */
+    if (birthday) {
+      const bInfo = parseBirthDate(r.birthDate);
+      const age = currentAge(bInfo);
+      const days = eff ? global.utils.daysFromToday(eff) : null;
+
+      if (eff === today && !r.done) {
+        /* Danas je rođendan */
+        if (age !== null) {
+          title.textContent = t('rem.birthday.today', '🎉 Danas — {name} slavi {age}. rođendan')
+            .replace('{name}', r.title || '')
+            .replace('{age}', String(age + 1 >= 0 ? age + 1 : age));
+        } else {
+          title.textContent = t('rem.birthday.todayNoAge', '🎉 Danas je rođendan — {name}')
+            .replace('{name}', r.title || '');
+        }
+      } else {
+        /* Nije danas — uobičajen naziv */
+        title.textContent = (r.title || '') + ' — ' + t('rem.birthday.label', 'rođendan');
+        if (age !== null) {
+          const span = document.createElement('span');
+          span.className = 'rem-years';
+          span.textContent = ' (' + age + ' ' + t('rem.birthday.years', 'god.') + ')';
+          title.appendChild(span);
+        }
+      }
+    } else {
+      title.textContent = r.title || '';
+    }
+
     body.appendChild(title);
 
+    /* Meta */
     const meta = document.createElement('div');
     meta.className = 'rem-meta';
 
-    if (r.date) {
-      const days = global.utils.daysFromToday(r.date);
+    if (eff) {
+      const days = global.utils.daysFromToday(eff);
       let cls = 'rem-meta-item';
-      let label = global.utils.formatDate(r.date, lang());
-      if (r.time) label += ' • ' + r.time;
+      let label = global.utils.formatDate(eff, lang());
+      if (r.time && !birthday) label += ' • ' + r.time;
+
       if (!r.done) {
         if (days < 0) { cls += ' overdue'; label += ' • ' + t('rem.overdue', 'isteklo'); }
         else if (days === 0) { cls += ' soon'; label += ' • ' + t('rem.today', 'danas'); }
         else if (days === 1) { label += ' • ' + t('rem.tomorrow', 'sutra'); }
-        else if (days <= 7) { label += ' • ' + t('rem.inDays', 'za') + ' ' + days + ' ' + t('rem.days', 'dana'); }
+        else if (days <= 30) {
+          if (days <= 7) cls += ' soon';
+          label += ' • ' + t('rem.inDays', 'za') + ' ' + days + ' ' + t('rem.days', 'dana');
+        }
       }
+
       const dateEl = document.createElement('span');
       dateEl.className = cls;
       dateEl.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="3" x2="8" y2="7"></line><line x1="16" y1="3" x2="16" y2="7"></line></svg> ' + global.utils.escapeHtml(label);
@@ -294,19 +478,29 @@
 
     if (r.category) {
       const cat = document.createElement('span');
-      cat.className = 'rem-category-chip';
+      cat.className = 'rem-category-chip' + (birthday ? ' birthday' : '');
       cat.textContent = categoryName(r.category);
       meta.appendChild(cat);
     }
 
-    if (r.priority && r.priority !== 'medium') {
+    if (r.priority && r.priority !== 'medium' && !birthday) {
       const p = document.createElement('span');
       p.className = 'rem-priority ' + r.priority;
       p.textContent = t('rem.priority.' + r.priority, r.priority);
       meta.appendChild(p);
     }
 
-    if (r.repeat && r.repeat !== 'none') {
+    /* Bedž "Podseti ranije" */
+    const notify = Number(r.notifyDaysBefore) || 0;
+    if (notify > 0 && !birthday) {
+      const chip = document.createElement('span');
+      chip.className = 'rem-notify-chip';
+      chip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ' +
+        t('rem.notify.' + notify, notify + ' dana ranije');
+      meta.appendChild(chip);
+    }
+
+    if (r.repeat && r.repeat !== 'none' && !birthday) {
       const rep = document.createElement('span');
       rep.className = 'rem-meta-item';
       rep.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> ' + t('rem.repeat.' + r.repeat, r.repeat);
@@ -347,7 +541,10 @@
       const ok = global.confirm(t('rem.deleteConfirm', 'Obrisati ovaj podsetnik?'));
       if (!ok) return;
       global.storage.delete(STORE, r.id).then(function () {
-        loadAll().then(function () { renderInto(view); if (global.home) global.home.refresh(); });
+        loadAll().then(function () {
+          if (listWrap) renderList(listWrap);
+          if (global.home) global.home.refresh();
+        });
       });
     });
     actions.appendChild(delBtn);
@@ -355,6 +552,13 @@
     item.appendChild(actions);
 
     return item;
+  }
+
+  function toggleFabVisibility() {
+    const fab = document.getElementById('remFab');
+    if (!fab) return;
+    const route = global.router && global.router.current ? global.router.current() : 'home';
+    fab.style.display = route === 'reminders' ? '' : 'none';
   }
 
   /* ---------- FORMA (modal) ---------- */
@@ -374,8 +578,13 @@
       description: '',
       priority: 'medium',
       repeat: 'none',
+      notifyDaysBefore: 0,
+      isBirthday: false,
+      birthDate: '',
       done: false
     };
+
+    const birthdayActive = item.isBirthday === true;
 
     formOverlay = document.createElement('div');
     formOverlay.className = 'modal-overlay';
@@ -395,6 +604,15 @@
       '      <select class="select" name="category">',
       '        <option value="">' + t('rem.field.noCategory', '— Bez kategorije —') + '</option>',
       '      </select>',
+      '      <button type="button" class="form-toggle-link" id="birthdayToggle" style="display:none;">' +
+              t('rem.field.markAsBirthday', 'Označi kao rođendan') + '</button>',
+      '    </div>',
+      '    <div id="birthdayPanel" class="birthday-panel" style="display:none;">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.birthDate', 'Datum rođenja') + '</label>',
+      '        <input class="input" type="date" name="birthDate" value="' + global.utils.escapeHtml(item.birthDate || '') + '" />',
+      '        <p class="form-hint">' + t('rem.field.birthDateHint', 'Unesi datum rođenja da bi se godine računale automatski.') + ' ' + t('rem.field.birthDateHintNoYear', 'Možeš uneti i samo dan i mesec, bez godine.') + '</p>',
+      '      </div>',
       '    </div>',
       '    <div class="form-row">',
       '      <div class="form-group">',
@@ -406,6 +624,20 @@
       '        <input class="input" type="time" name="time" value="' + global.utils.escapeHtml(item.time || '') + '" />',
       '      </div>',
       '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.notifyDaysBefore', 'Podseti me ranije') + '</label>',
+      '      <select class="select" name="notifyDaysBefore">',
+      '        <option value="0">' + t('rem.notify.0', 'Na dan') + '</option>',
+      '        <option value="1">' + t('rem.notify.1', '1 dan ranije') + '</option>',
+      '        <option value="2">' + t('rem.notify.2', '2 dana ranije') + '</option>',
+      '        <option value="3">' + t('rem.notify.3', '3 dana ranije') + '</option>',
+      '        <option value="5">' + t('rem.notify.5', '5 dana ranije') + '</option>',
+      '        <option value="7">' + t('rem.notify.7', '7 dana ranije') + '</option>',
+      '        <option value="14">' + t('rem.notify.14', '14 dana ranije') + '</option>',
+      '        <option value="30">' + t('rem.notify.30', '30 dana ranije') + '</option>',
+      '      </select>',
+      '      <p class="form-hint">' + t('rem.field.notifyHint', 'Prikaži ovaj podsetnik nekoliko dana pre datuma.') + '</p>',
+      '    </div>',
       '    <div class="form-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('rem.field.priority', 'Prioritet') + '</label>',
@@ -415,7 +647,7 @@
       '          <option value="high">' + t('rem.priority.high', 'Visok') + '</option>',
       '        </select>',
       '      </div>',
-      '      <div class="form-group">',
+      '      <div class="form-group" id="repeatGroup">',
       '        <label class="label">' + t('rem.field.repeat', 'Ponavljanje') + '</label>',
       '        <select class="select" name="repeat">',
       '          <option value="none">' + t('rem.repeat.none', 'Ne ponavlja se') + '</option>',
@@ -452,19 +684,89 @@
       catSelect.appendChild(opt);
     });
 
-    /* Postavi prioritet i repeat */
+    /* Postavi vrednosti */
     formOverlay.querySelector('select[name="priority"]').value = item.priority || 'medium';
     formOverlay.querySelector('select[name="repeat"]').value = item.repeat || 'none';
+    formOverlay.querySelector('select[name="notifyDaysBefore"]').value = String(item.notifyDaysBefore || 0);
+
+    /* Referentni elementi */
+    const birthdayToggle = formOverlay.querySelector('#birthdayToggle');
+    const birthdayPanel = formOverlay.querySelector('#birthdayPanel');
+    const repeatGroup = formOverlay.querySelector('#repeatGroup');
+    const dateInput = formOverlay.querySelector('input[name="date"]');
+    const repeatSelect = formOverlay.querySelector('select[name="repeat"]');
+
+    /* Funkcija za osvežavanje vidljivosti polja */
+    function refreshBirthdayUI() {
+      const isFamily = catSelect.value === BIRTHDAY_CATEGORY;
+      const isBday = item.isBirthday === true;
+
+      /* Toggle link se prikazuje samo za family kategoriju, i to ako nije već rođendan */
+      if (isFamily && !isBday) {
+        birthdayToggle.style.display = 'inline-block';
+        birthdayToggle.textContent = t('rem.field.markAsBirthday', 'Označi kao rođendan');
+      } else if (isBday) {
+        birthdayToggle.style.display = 'inline-block';
+        birthdayToggle.textContent = '✓ ' + t('rem.field.isBirthday', 'Rođendan');
+      } else {
+        birthdayToggle.style.display = 'none';
+      }
+
+      /* Birthday panel */
+      if (isBday) {
+        birthdayPanel.style.display = 'block';
+        repeatGroup.style.display = 'none';
+      } else {
+        birthdayPanel.style.display = 'none';
+        repeatGroup.style.display = '';
+      }
+    }
+
+    /* Kada se promeni kategorija */
+    catSelect.addEventListener('change', function () {
+      if (catSelect.value !== BIRTHDAY_CATEGORY) {
+        /* Ako je korisnik prešao sa family na drugu kategoriju, resetuj birthday */
+        item.isBirthday = false;
+      }
+      refreshBirthdayUI();
+    });
+
+    /* Toggle za rođendan */
+    birthdayToggle.addEventListener('click', function () {
+      item.isBirthday = !item.isBirthday;
+      if (item.isBirthday) {
+        /* Automatski postavi repeat = yearly */
+        repeatSelect.value = 'yearly';
+        /* Ako je datum već unet, uzmi dan i mesec kao birthDate */
+        if (!formOverlay.querySelector('input[name="birthDate"]').value && dateInput.value) {
+          formOverlay.querySelector('input[name="birthDate"]').value = dateInput.value;
+        }
+      }
+      refreshBirthdayUI();
+      refreshBirthdayDate();
+    });
+
+    /* Kada se unese birthDate — ažuriraj datum podsetnika za naredni rođendan */
+    const birthInput = formOverlay.querySelector('input[name="birthDate"]');
+    function refreshBirthdayDate() {
+      if (item.isBirthday && birthInput.value) {
+        const bInfo = parseBirthDate(birthInput.value);
+        const next = nextBirthdayISO(bInfo);
+        if (next) dateInput.value = next;
+      }
+    }
+    birthInput.addEventListener('change', refreshBirthdayDate);
+
+    refreshBirthdayUI();
 
     formOverlay.querySelector('#remCancel').addEventListener('click', closeForm);
-
     formOverlay.addEventListener('click', function (e) {
       if (e.target === formOverlay) closeForm();
     });
 
     formOverlay.querySelector('#remForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      submitForm(formOverlay);
+      submitForm(formOverlay, item);
     });
 
     requestAnimationFrame(function () {
@@ -481,10 +783,12 @@
     }, 200);
   }
 
-  function submitForm(overlay) {
+  function submitForm(overlay, baseItem) {
     const form = overlay.querySelector('#remForm');
     const errEl = overlay.querySelector('#remFormError');
     errEl.textContent = '';
+
+    const isBday = baseItem.isBirthday === true;
 
     const data = {
       title: form.title.value.trim(),
@@ -492,14 +796,31 @@
       date: form.date.value,
       time: form.time.value,
       priority: form.priority.value,
-      repeat: form.repeat.value,
-      description: form.description.value.trim()
+      repeat: isBday ? 'yearly' : form.repeat.value,
+      notifyDaysBefore: Number(form.notifyDaysBefore.value) || 0,
+      description: form.description.value.trim(),
+      isBirthday: isBday,
+      birthDate: isBday ? (form.birthDate.value || '') : ''
     };
 
     if (!data.title) {
       errEl.textContent = t('rem.err.title', 'Naziv je obavezan.');
       return;
     }
+
+    /* Ako je rođendan, birthDate je obavezan; ako nije, datum je obavezan */
+    if (isBday && !data.birthDate) {
+      errEl.textContent = t('rem.err.birthDate', 'Datum rođenja je obavezan za rođendan.');
+      return;
+    }
+
+    /* Ako je rođendan — datum se automatski računa */
+    if (isBday && data.birthDate) {
+      const bInfo = parseBirthDate(data.birthDate);
+      const next = nextBirthdayISO(bInfo);
+      if (next) data.date = next;
+    }
+
     if (!data.date) {
       errEl.textContent = t('rem.err.date', 'Datum je obavezan.');
       return;
@@ -522,7 +843,10 @@
       closeForm();
       loadAll().then(function () {
         const view = document.getElementById('view-reminders');
-        if (view) renderInto(view);
+        if (view) {
+          const listWrap = view.querySelector('.rem-list');
+          if (listWrap) renderList(listWrap);
+        }
         if (global.home) global.home.refresh();
       });
     }).catch(function (err) {
@@ -540,7 +864,29 @@
 
     global.addEventListener('alatikapro:langchange', function () {
       const view = document.getElementById('view-reminders');
-      if (view) renderInto(view);
+      if (view) {
+        /* Kompletan rebuild pri promeni jezika */
+        view.innerHTML = '';
+        const header = document.createElement('div');
+        header.className = 'module-header';
+        header.innerHTML = [
+          '<div class="module-title-wrap">',
+          '  <div class="module-icon color-amber" aria-hidden="true">',
+          '    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>',
+          '  </div>',
+          '  <div>',
+          '    <h2 data-i18n="reminders.title">' + t('reminders.title', 'Podsetnici') + '</h2>',
+          '    <p class="text-muted text-sm" data-i18n="reminders.subtitle">' + t('reminders.subtitle', 'Ne zaboravi važne obaveze.') + '</p>',
+          '  </div>',
+          '</div>',
+          '<button type="button" class="icon-btn" data-module-lock="reminders" title="Zaključaj / Otključaj">',
+          '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
+          '</button>'
+        ].join('');
+        view.appendChild(header);
+        renderInto(view);
+        if (global.home) global.home.bindModuleLocks && global.home.bindModuleLocks();
+      }
     });
 
     if (global.router && global.router.onRouteChange) {
@@ -559,6 +905,10 @@
     loadAll: loadAll,
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
-    addCustomCategory: addCustomCategory
+    addCustomCategory: addCustomCategory,
+    effectiveDate: effectiveDate,
+    isBirthday: isBirthday,
+    parseBirthDate: parseBirthDate,
+    currentAge: currentAge
   };
 })(window);
