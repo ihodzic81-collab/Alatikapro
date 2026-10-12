@@ -77,6 +77,28 @@
     }
   }
 
+  function initBills() {
+    if (global.bills && global.bills.init) {
+      global.bills.init();
+    }
+  }
+
+  /**
+   * Univerzalno back dugme.
+   * Radi na svim elementima sa atributom [data-back].
+   * Klik vraća na Početnu.
+   */
+  function initBackButtons() {
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest('[data-back]');
+      if (!btn) return;
+      e.preventDefault();
+      if (global.router && global.router.navigate) {
+        global.router.navigate('home');
+      }
+    });
+  }
+
   function applyInitialState() {
     if (!global.appState) return;
     const s = global.appState.state;
@@ -87,7 +109,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — sesija 3 spremna.',
+      '%cAlatika Pro%c v1.0.0 — sesija 4a spremna.',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -98,9 +120,11 @@
       initTheme();
       initLanguage();
       initSettings();
+      initBackButtons();
       initRouter();
       initHome();
       initReminders();
+      initBills();
       applyInitialState();
       logStatus();
     } catch (err) {
