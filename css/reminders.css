@@ -74,6 +74,13 @@
 }
 
 /* =====================
+   LISTA
+   ===================== */
+.rem-list {
+  /* kontejner koji se ponovo renderuje pri pretrazi */
+}
+
+/* =====================
    GRUPE
    ===================== */
 .rem-group {
@@ -124,6 +131,10 @@
   text-decoration: line-through;
 }
 
+.rem-item.is-birthday {
+  border-left: 3px solid var(--color-module-items);
+}
+
 .rem-check {
   flex: 0 0 auto;
   width: 26px;
@@ -160,6 +171,12 @@
   color: var(--color-text);
   line-height: 1.3;
   word-break: break-word;
+}
+
+.rem-title .rem-years {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
 }
 
 .rem-meta {
@@ -291,8 +308,48 @@
   min-height: 1.2em;
 }
 
+.form-hint {
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+  margin-top: 0.35rem;
+  line-height: 1.35;
+}
+
+.form-toggle-link {
+  display: inline-block;
+  font-size: 0.82rem;
+  color: var(--color-brand);
+  font-weight: 600;
+  margin-top: 0.4rem;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.form-toggle-link:hover {
+  color: var(--color-brand-strong);
+}
+
+.birthday-panel {
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.birthday-panel .form-group {
+  margin-bottom: 0.5rem;
+}
+
+.birthday-panel .form-group:last-child {
+  margin-bottom: 0;
+}
+
 /* =====================
-   CHIP za kategorije (u listi)
+   CHIP za kategorije
    ===================== */
 .rem-category-chip {
   display: inline-block;
@@ -302,4 +359,46 @@
   font-weight: 600;
   background-color: var(--color-surface-2);
   color: var(--color-text-muted);
+}
+
+.rem-category-chip.birthday {
+  background-color: rgba(139, 92, 246, 0.15);
+  color: var(--color-module-items);
+}
+
+/* =====================
+   BEDŽ "PODSETI RANIJE"
+   ===================== */
+.rem-notify-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning);
+}
+
+.rem-notify-chip svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* =====================
+   DANAS-ROĐENDAN BANNER (u listi)
+   ===================== */
+.rem-item.birthday-today {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(108, 92, 231, 0.06));
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+:root[data-theme="dark"] .rem-item.birthday-today {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(108, 92, 231, 0.08));
+}
+
+.rem-item.birthday-today .rem-title {
+  color: var(--color-module-items);
+  font-weight: 700;
 }
