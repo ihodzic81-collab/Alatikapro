@@ -1,10 +1,10 @@
 /* =========================================================
    ALATIKA PRO — nbs.js
    Kursna lista NBS (Narodna banka Srbije).
-   - Povlači XML sa zvaničnog sajta NBS-a
+   - Povlači XML sa zvaničnog sajta NBS-a (preko proxy-ja)
    - Kešira rezultat u localStorage (radi offline)
    - Osvežava se 1x dnevno
-   - Podržava "srednji kurs" (NBS objavljuje samo srednji)
+   - Nazivi valuta se uzimaju iz našeg currencies.js (latinica)
    ========================================================= */
 
 (function (global) {
@@ -13,10 +13,20 @@
   const LS_RATES = 'nbs.rates';
   const LS_UPDATED = 'nbs.updatedAt';
   const NBS_URL = 'https://www.nbs.rs/export/sites/default/internet/latinica/scripts/kl_srednji.xml';
-  const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; /* 1 dan */
+  const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  const FETCH_TIMEOUT_MS = 10000;
+
+  /* Proxy servisi kao fallback (jer NBS ne dozvoljava CORS direktno) */
+  const PROXIES = [
+    'https://corsproxy.io/?url=' + encodeURIComponent(NBS_URL),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(NBS_URL),
+    'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(NBS_URL),
+    'https://thingproxy.freeboard.io/fetch/' + NBS_URL
+  ];
 
   const state = {
     rates: null,
+    date: null,
     updatedAt: null,
     loading: false,
     error: null
@@ -24,36 +34,20 @@
 
   /* ---------- PARSIRANJE XML ---------- */
 
-  /**
-   * Parsira XML iz NBS-a.
-   * Format XML-a (pojednostavljeno):
-   *   <KursnaLista>
-   *     <Datum>2026-10-12</Datum>
-   *     <Valuta>
-   *       <Sifra>EUR</Sifra>
-   *       <Naziv>Evro</Naziv>
-   *       <Srednji>117.2300</Srednji>
-   *     </Valuta>
-   *     ...
-   *   </KursnaLista>
-   *
-   * Ako format ne odgovara, funkcija pokušava da pronađe bilo koji XML
-   * sa elementima Valuta/Sifra/Srednji.
-   */
   function parseNBSXML(xmlText) {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(xmlText, 'text/xml');
 
-      /* Provera grešaka u XML-u */
       const parseError = doc.querySelector('parsererror');
       if (parseError) {
         return { error: 'XML greška u NBS odgovoru.' };
       }
 
       /* Datum */
-      let dateEl = doc.querySelector('Datum');
-      let date = dateEl ? dateEl.textContent.trim() : '';
+      let date = '';
+      const dateEl = doc.querySelector('Datum');
+      if (dateEl) date = dateEl.textContent.trim();
 
       /* Valute */
       const valutaEls = doc.querySelectorAll('Valuta');
@@ -62,17 +56,21 @@
       valutaEls.forEach(function (v) {
         const sifraEl = v.querySelector('Sifra');
         const srednjiEl = v.querySelector('Srednji');
-        const nazivEl = v.querySelector('Naziv');
         if (!sifraEl || !srednjiEl) return;
 
         const code = sifraEl.textContent.trim().toUpperCase();
-        /* NBS koristi zarez kao decimalni separator */
         const value = parseFloat(srednjiEl.textContent.trim().replace(',', '.'));
         if (!isFinite(value) || value <= 0) return;
 
+        /* Ime iz našeg currencies.js (latinica), ne iz XML-a (ćirilica) */
+        let name = code;
+        if (global.currencies && global.currencies.getName) {
+          name = global.currencies.getName(code, 'sr');
+        }
+
         rates[code] = {
           code: code,
-          name: nazivEl ? nazivEl.textContent.trim() : code,
+          name: name,
           middle: value,
           unit: 1
         };
@@ -96,81 +94,62 @@
     }
   }
 
-  /* ---------- POVLAČENJE SA NBS ---------- */
+  /* ---------- FETCH SA TIMEOUT-om ---------- */
 
-  /**
-   * Povlači XML sa NBS sajta.
-   * Vraća Promise sa { date, rates } ili greškom.
-   */
-  function fetchFromNBS() {
+  function fetchWithTimeout(url, timeoutMs) {
     return new Promise(function (resolve, reject) {
-      /* Timeout za slučaj da NBS ne odgovori */
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeout = setTimeout(function () {
+      const timer = setTimeout(function () {
         if (controller) controller.abort();
-      }, 12000);
+        reject(new Error('Timeout'));
+      }, timeoutMs);
 
       const opts = {
         method: 'GET',
-        mode: 'cors',
         cache: 'no-store'
       };
       if (controller) opts.signal = controller.signal;
 
-      fetch(NBS_URL, opts).then(function (res) {
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      }).then(function (text) {
-        const parsed = parseNBSXML(text);
-        if (parsed.error) {
-          reject(new Error(parsed.error));
-        } else {
-          resolve(parsed);
+      fetch(url, opts).then(function (res) {
+        clearTimeout(timer);
+        if (!res.ok) {
+          reject(new Error('HTTP ' + res.status));
+          return;
         }
+        res.text().then(resolve).catch(reject);
       }).catch(function (err) {
-        clearTimeout(timeout);
-        /* Ako je CORS problem — probaj preko proxy-ja */
-        if (err.message && (err.message.indexOf('Failed to fetch') !== -1 || err.name === 'TypeError')) {
-          fetchViaProxy().then(resolve).catch(reject);
-        } else {
-          reject(err);
-        }
+        clearTimeout(timer);
+        reject(err);
       });
     });
   }
 
-  /**
-   * Fallback: povlači preko javnog CORS proxy-ja.
-   * Ovo je samo rezervna opcija ako direktno ne radi.
-   */
-  function fetchViaProxy() {
-    const proxies = [
-      'https://corsproxy.io/?' + encodeURIComponent(NBS_URL),
-      'https://api.allorigins.win/raw?url=' + encodeURIComponent(NBS_URL)
-    ];
+  /* ---------- POVLAČENJE SA NBS (preko proxy-ja) ---------- */
 
-    return new Promise(function (resolve, reject) {
-      let idx = 0;
-      function tryNext() {
-        if (idx >= proxies.length) {
-          reject(new Error('NBS nije dostupan.'));
-          return;
-        }
-        const url = proxies[idx++];
-        fetch(url, { cache: 'no-store' }).then(function (res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          return res.text();
-        }).then(function (text) {
-          const parsed = parseNBSXML(text);
-          if (parsed.error) throw new Error(parsed.error);
-          resolve(parsed);
-        }).catch(function () {
-          tryNext();
-        });
+  function fetchFromNBS() {
+    /* Redosled: probaj direktno (možda radi u nekim browserima), pa proxiji */
+    const urls = [NBS_URL].concat(PROXIES);
+
+    let idx = 0;
+
+    function tryNext() {
+      if (idx >= urls.length) {
+        return Promise.reject(new Error('NBS nije dostupan ni preko jednog proxy-ja.'));
       }
-      tryNext();
-    });
+      const url = urls[idx++];
+      return fetchWithTimeout(url, FETCH_TIMEOUT_MS).then(function (text) {
+        const parsed = parseNBSXML(text);
+        if (parsed.error) {
+          throw new Error(parsed.error);
+        }
+        return parsed;
+      }).catch(function () {
+        /* Probaj sledeći proxy */
+        return tryNext();
+      });
+    }
+
+    return tryNext();
   }
 
   /* ---------- KEŠ ---------- */
@@ -202,14 +181,8 @@
 
   /* ---------- GLAVNA FUNKCIJA ---------- */
 
-  /**
-   * Vraća Promise sa kursnom listom.
-   * 1. Ako postoji sveža keširana lista (mlađa od 24h) — vraća nju.
-   * 2. Inače pokušava da povuče sa NBS-a.
-   * 3. Ako NBS ne radi — vraća staru keširanu listu.
-   * 4. Ako nema ni keša — vraća grešku.
-   */
   function getRates(forceRefresh) {
+    /* Ako imamo svežu listu u memoriji */
     if (state.rates && state.updatedAt && !forceRefresh) {
       const age = Date.now() - state.updatedAt;
       if (age < REFRESH_INTERVAL_MS) {
@@ -219,20 +192,6 @@
           updatedAt: state.updatedAt,
           fromCache: true,
           stale: false
-        });
-      }
-    }
-
-    if (state.loading) {
-      /* Ako je već u toku, vrati keš ili čekaj */
-      const cached = loadFromCache();
-      if (cached) {
-        return Promise.resolve({
-          rates: cached.rates,
-          date: cached.date,
-          updatedAt: cached.updatedAt,
-          fromCache: true,
-          stale: true
         });
       }
     }
@@ -305,17 +264,12 @@
     return r.middle;
   }
 
-  /**
-   * Konvertuje iz jedne valute u drugu koristeći srednji kurs NBS-a.
-   * Vraća broj (rezultat) ili null ako ne može.
-   */
   function convert(amount, fromCode, toCode) {
     if (!state.rates) return null;
     const from = state.rates[fromCode.toUpperCase()];
     const to = state.rates[toCode.toUpperCase()];
     if (!from || !to) return null;
 
-    /* Sve valute imaju kurs prema RSD (srednji) */
     const amountInRSD = amount * from.middle;
     const result = amountInRSD / to.middle;
     return result;
@@ -336,8 +290,6 @@
   function getError() {
     return state.error;
   }
-
-  /* ---------- EXPORT ---------- */
 
   global.nbs = {
     getRates: getRates,
