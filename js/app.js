@@ -86,7 +86,6 @@
   /**
    * Univerzalno back dugme.
    * Radi na svim elementima sa atributom [data-back].
-   * Klik vraća na Početnu.
    */
   function initBackButtons() {
     document.addEventListener('click', function (e) {
@@ -99,6 +98,37 @@
     });
   }
 
+  /**
+   * Automatska realizacija čekova — pokreće se periodično
+   * dok je aplikacija otvorena (na svakih 30 minuta) i pri startu.
+   */
+  function startChecksAutoRealize() {
+    if (!global.bills || !global.bills.autoRealizeChecks) return;
+
+    /* Odmah pri startu */
+    global.bills.autoRealizeChecks().then(function (changed) {
+      if (changed > 0) {
+        /* Ponovo učitaj i renderuj ako je bilo promena */
+        if (global.bills.loadAll) {
+          global.bills.loadAll().then(function () {
+            const v = document.getElementById('view-bills');
+            if (v && global.router && global.router.current &&
+                global.router.current() === 'bills') {
+              /* Trigger re-render */
+              const event = new Event('alatikapro:checksAutoRealized');
+              window.dispatchEvent(event);
+            }
+          });
+        }
+      }
+    });
+
+    /* Periodično — na svakih 30 minuta */
+    setInterval(function () {
+      global.bills.autoRealizeChecks();
+    }, 30 * 60 * 1000);
+  }
+
   function applyInitialState() {
     if (!global.appState) return;
     const s = global.appState.state;
@@ -109,7 +139,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — sesija 4a spremna.',
+      '%cAlatika Pro%c v1.0.0 — sesija 4 (Rate + Čekovi + Slike) spremna.',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -126,6 +156,7 @@
       initReminders();
       initBills();
       applyInitialState();
+      startChecksAutoRealize();
       logStatus();
     } catch (err) {
       if (global.console && console.error) {
