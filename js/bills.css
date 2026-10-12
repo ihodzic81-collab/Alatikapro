@@ -1,0 +1,554 @@
+/* =========================================================
+   ALATIKA PRO — bills.css
+   Stilovi za modul Računi (i deljeni za Čekove).
+   ========================================================= */
+
+/* =====================
+   BACK DUGME
+   ===================== */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--color-text);
+  background-color: transparent;
+  margin-right: 0.35rem;
+  flex: 0 0 auto;
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back-btn:hover {
+  background-color: var(--color-surface-2);
+}
+
+.back-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* =====================
+   TABOVI (Računi / Čekovi)
+   ===================== */
+.bills-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  padding: 0.25rem;
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+}
+
+.bills-tab {
+  flex: 1 1 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  text-align: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.bills-tab.active {
+  background-color: var(--color-surface);
+  color: var(--color-module-bills);
+  box-shadow: var(--shadow-sm);
+}
+
+/* =====================
+   MESEC/GODINA PREBACIVANJE
+   ===================== */
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  margin-bottom: 0.75rem;
+}
+
+.month-nav-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--color-text);
+  transition: background-color 0.15s ease;
+}
+
+.month-nav-btn:hover {
+  background-color: var(--color-surface-2);
+}
+
+.month-nav-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+  flex: 1 1 auto;
+}
+
+/* =====================
+   SAŽETAK (brojevi na vrhu)
+   ===================== */
+.bills-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.bills-stat {
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.bills-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+.bills-stat-value.paid { color: var(--color-success); }
+.bills-stat-value.pending { color: var(--color-warning); }
+.bills-stat-value.total { color: var(--color-module-bills); }
+
+.bills-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* =====================
+   SAŽETAK PO VALUTI (kada ima više valuta)
+   ===================== */
+.bills-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.bills-total-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.bills-total-chip .flag {
+  font-size: 0.95rem;
+}
+
+/* =====================
+   FILTERI
+   ===================== */
+.bills-filters {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.bills-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.bills-filter {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.bills-filter.active {
+  background-color: var(--color-module-bills);
+  color: #ffffff;
+  border-color: var(--color-module-bills);
+}
+
+/* =====================
+   PRETRAGA
+   ===================== */
+.bills-search {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.bills-search input {
+  width: 100%;
+  padding: 0.7rem 1rem 0.7rem 2.4rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  outline: none;
+  min-height: 44px;
+}
+
+.bills-search input:focus {
+  border-color: var(--color-module-bills);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.bills-search .search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+/* =====================
+   LISTA RAČUNA
+   ===================== */
+.bills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bill-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.bill-item:active {
+  transform: scale(0.99);
+}
+
+.bill-item:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.bill-item.overdue {
+  border-left: 3px solid var(--color-danger);
+}
+
+.bill-item.paid {
+  border-left: 3px solid var(--color-success);
+}
+
+.bill-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background-color: var(--color-surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+  overflow: hidden;
+}
+
+.bill-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bill-thumb svg {
+  width: 24px;
+  height: 24px;
+}
+
+.bill-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bill-name {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.bill-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  align-items: center;
+}
+
+.bill-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bill-meta-item.overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.bill-meta-item.soon {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.bill-amount {
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.bill-amount .currency-code {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-left: 0.15rem;
+}
+
+.bill-status {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.bill-status.paid {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--color-success);
+}
+
+.bill-status.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning);
+}
+
+.bill-status.overdue {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+}
+
+/* =====================
+   PRAZNO STANJE
+   ===================== */
+.bills-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.bills-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background-color: rgba(59, 130, 246, 0.10);
+  color: var(--color-module-bills);
+  margin-bottom: 0.75rem;
+}
+
+/* =====================
+   PLUTAJUĆE DUGME
+   ===================== */
+.fab-bills {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--bottom-nav-height) + 1rem);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--color-module-bills);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  z-index: 55;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab-bills:active {
+  transform: scale(0.94);
+}
+
+.fab-bills:hover {
+  background-color: #2563EB;
+}
+
+@media (min-width: 700px) {
+  .fab-bills {
+    right: calc(50% - var(--max-width) / 2 + 1rem);
+  }
+}
+
+/* =====================
+   FORMA — sekcije
+   ===================== */
+.bill-form-section {
+  margin-bottom: 1rem;
+}
+
+.bill-form-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+/* =====================
+   UPLOAD ZONA (za Sesiju 4b)
+   ===================== */
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 1rem;
+  border: 2px dashed var(--color-border);
+  border-radius: 14px;
+  background-color: var(--color-surface-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  min-height: 140px;
+}
+
+.upload-zone:hover {
+  border-color: var(--color-module-bills);
+  background-color: rgba(59, 130, 246, 0.06);
+}
+
+.upload-zone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: var(--color-module-bills);
+}
+
+.upload-zone-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.upload-zone-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  max-width: 30ch;
+}
+
+.upload-preview {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--color-surface-2);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.upload-preview img {
+  width: 100%;
+  display: block;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.upload-preview-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.upload-preview-actions .btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* =====================
+   IZNOS + VALUTA (u formi)
+   ===================== */
+.amount-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.amount-row .currency-select {
+  min-width: 130px;
+}
+
+/* =====================
+   VALUTA U SELECT-u
+   ===================== */
+.currency-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
