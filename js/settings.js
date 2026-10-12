@@ -1,6 +1,7 @@
 /* =========================================================
    ALATIKA PRO — settings.js
    Podešavanja:
+   - Opšte: Format datuma (DD/MM/GGGG ili MM/DD/GGGG)
    - Privatnost i zaključavanje (PIN)
    - Zaključavanje pojedinačnih kartica
    - Automatsko zaključavanje
@@ -74,7 +75,87 @@
     const body = overlay.querySelector('#settingsBody');
     body.innerHTML = '';
 
-    /* --- Sekcija: Privatnost i zaključavanje --- */
+    /* ================================================
+       SEKCIJA 1: OPŠTE (Format datuma)
+       ================================================ */
+    const general = el('div', { class: 'card', style: 'margin-bottom: 0.75rem;' });
+
+    general.appendChild(el('h4', {
+      class: 'text-sm font-bold',
+      text: t('settings.general', 'Opšte')
+    }));
+
+    /* Format datuma */
+    const dateRow = el('div', { class: 'lock-row', style: 'margin-top: 0.5rem;' });
+    dateRow.appendChild(el('span', {
+      class: 'lock-row-label',
+      text: t('settings.dateFormat', 'Format datuma')
+    }));
+
+    const dateSelect = el('select', {
+      class: 'select',
+      style: 'max-width: 200px; min-height: 40px; padding: 0.4rem 0.6rem;'
+    });
+
+    const currentFormat = global.utils.getDateFormat();
+    const formats = [
+      { v: 'DMY', label: t('settings.dateFormatDMY', 'Dan/Mesec/Godina (DD/MM/GGGG)') },
+      { v: 'MDY', label: t('settings.dateFormatMDY', 'Mesec/Dan/Godina (MM/DD/GGGG)') }
+    ];
+
+    formats.forEach(function (f) {
+      const opt = el('option', { value: f.v, text: f.label });
+      if (f.v === currentFormat) opt.setAttribute('selected', 'selected');
+      dateSelect.appendChild(opt);
+    });
+
+    dateSelect.addEventListener('change', function () {
+      global.utils.setDateFormat(dateSelect.value);
+      if (global.home && global.home.showToast) {
+        global.home.showToast(t('settings.dateFormatChanged', 'Format datuma promenjen.'));
+      }
+      /* Osveži trenutni ekran */
+      if (global.router) {
+        const route = global.router.current();
+        if (route === 'reminders' && global.reminders) {
+          const v = document.getElementById('view-reminders');
+          if (v) {
+            v.innerHTML = '';
+            global.reminders.init && global.reminders.init();
+          }
+        }
+        if (route === 'bills' && global.bills) {
+          const v = document.getElementById('view-bills');
+          if (v) {
+            v.innerHTML = '';
+            global.bills.init && global.bills.init();
+          }
+        }
+        if (route === 'items' && global.items) {
+          const v = document.getElementById('view-items');
+          if (v) {
+            v.innerHTML = '';
+            global.items.init && global.items.init();
+          }
+        }
+      }
+    });
+
+    dateRow.appendChild(dateSelect);
+    general.appendChild(dateRow);
+
+    /* Hint ispod */
+    general.appendChild(el('p', {
+      class: 'form-hint',
+      style: 'margin-top: 0.4rem;',
+      text: t('settings.dateFormatHint', 'Primer: 25/12/2026 ili 12/25/2026')
+    }));
+
+    body.appendChild(general);
+
+    /* ================================================
+       SEKCIJA 2: PRIVATNOST I ZAKLJUČAVANJE
+       ================================================ */
     const privacy = el('div', { class: 'card' });
 
     privacy.appendChild(el('h4', {
@@ -112,13 +193,13 @@
       if (!global.pinUI) return;
       if (pinSet) {
         global.pinUI.promptChangePin(function () {
-          global.home.showToast(t('settings.pinChanged', 'PIN je promenjen.'));
+          if (global.home) global.home.showToast(t('settings.pinChanged', 'PIN je promenjen.'));
           renderBody();
           if (global.home) global.home.refresh();
         });
       } else {
         global.pinUI.promptSetPin(function () {
-          global.home.showToast(t('settings.pinSetOk', 'PIN je postavljen.'));
+          if (global.home) global.home.showToast(t('settings.pinSetOk', 'PIN je postavljen.'));
           renderBody();
           if (global.home) global.home.refresh();
         });
@@ -214,7 +295,7 @@
         global.pin.clearSession();
         if (global.home) global.home.refresh();
         renderBody();
-        global.home.showToast(t('settings.pinRemoved', 'PIN je uklonjen.'));
+        if (global.home) global.home.showToast(t('settings.pinRemoved', 'PIN je uklonjen.'));
       });
       removeRow.appendChild(removeBtn);
       privacy.appendChild(removeRow);
@@ -222,7 +303,9 @@
 
     body.appendChild(privacy);
 
-    /* --- Sekcija: O aplikaciji --- */
+    /* ================================================
+       SEKCIJA 3: O APLIKACIJI
+       ================================================ */
     const about = el('div', { class: 'card', style: 'margin-top: 0.75rem;' });
     about.appendChild(el('h4', {
       class: 'text-sm font-bold',
