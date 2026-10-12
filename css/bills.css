@@ -1,6 +1,6 @@
 /* =========================================================
    ALATIKA PRO — bills.css
-   Stilovi za modul Računi (Računi, Rate, Čekovi, Upload, Detalji)
+   Stilovi za modul Računi (Računi, Rate, Čekovi, Upload, Detalji, Smart Date)
    ========================================================= */
 
 /* =====================
@@ -457,6 +457,109 @@
 }
 
 /* =====================
+   PAMETAN DATE INPUT
+   ===================== */
+.smart-date {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.smart-date input.input,
+.smart-date input[type="text"] {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 0.75rem 3rem 0.75rem 1rem;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.smart-date input.input:focus,
+.smart-date input[type="text"]:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-ring);
+}
+
+.smart-date input.input.input-error {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.smart-date-icon {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 40px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background-color: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+}
+
+.smart-date-icon:hover {
+  background-color: var(--color-surface-2);
+  color: var(--color-brand);
+}
+
+.smart-date-hidden {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+/* =====================
+   AMOUNT MODE TOGGLE (za čekove)
+   ===================== */
+.amount-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+}
+
+.amt-mode-btn {
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  text-align: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.amt-mode-btn.active {
+  background-color: var(--color-surface);
+  color: var(--color-module-bills);
+  box-shadow: var(--shadow-sm);
+}
+
+/* =====================
    UPLOAD ZONA
    ===================== */
 .upload-zone {
@@ -706,13 +809,6 @@
   font-weight: 600;
 }
 
-.rate-remaining .currency-code {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-text-subtle);
-}
-
-/* Dugme "Plati ratu" u listi */
 .rate-pay-btn {
   flex: 0 0 auto;
   align-self: stretch;
@@ -766,7 +862,6 @@
   white-space: nowrap;
 }
 
-/* Dugme "Plati sledeću ratu" u detaljima */
 .rate-pay-big {
   background: linear-gradient(135deg, #10B981, #059669) !important;
   border: none;
@@ -966,7 +1061,7 @@
 }
 
 /* =====================
-   PREVIEW mesečnog iznosa (u formi)
+   PREVIEW mesečnog iznosa
    ===================== */
 .check-monthly-preview {
   padding: 0.85rem 1rem;
@@ -1034,5 +1129,17 @@
   .rate-pay-btn svg {
     width: 16px;
     height: 16px;
+  }
+  .smart-date input.input,
+  .smart-date input[type="text"] {
+    font-size: 0.95rem;
+    padding-right: 2.75rem;
+  }
+  .smart-date-icon {
+    width: 36px;
+  }
+  .amt-mode-btn {
+    font-size: 0.78rem;
+    padding: 0.55rem 0.4rem;
   }
 }
