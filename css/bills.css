@@ -98,7 +98,6 @@
   color: var(--color-text);
   text-align: center;
   flex: 1 1 auto;
-  text-transform: capitalize;
 }
 
 /* =====================
@@ -245,6 +244,32 @@
   gap: 0.5rem;
 }
 
+/* Divider za račune iz drugih meseci */
+.other-month-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.4rem;
+  padding: 0 0.25rem;
+}
+
+.other-month-divider::before,
+.other-month-divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background-color: var(--color-border-subtle);
+}
+
+.other-month-divider span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
 /* =====================
    RAČUN — stavka
    ===================== */
@@ -279,6 +304,24 @@
 
 .bill-item.paid {
   border-left: 3px solid var(--color-success);
+}
+
+/* Oznaka drugog meseca */
+.bill-item.other-month {
+  opacity: 0.85;
+}
+
+.bill-month-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: rgba(108, 92, 231, 0.12);
+  color: #6C5CE7;
 }
 
 .bill-thumb {
@@ -480,7 +523,7 @@
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1060,6 +1103,46 @@
   padding-top: 0.6rem;
 }
 
+/* Brze akcije na grupi */
+.purchase-quick-actions {
+  padding: 0 0.9rem 0.9rem;
+}
+
+.purchase-quick-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10B981, #059669);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.purchase-quick-btn:hover {
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.purchase-quick-btn:active {
+  transform: scale(0.98);
+}
+
+.purchase-quick-btn .quick-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.85;
+  background-color: rgba(255, 255, 255, 0.18);
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
 /* =====================
    PREVIEW mesečnog iznosa
    ===================== */
@@ -1141,5 +1224,12 @@
   .amt-mode-btn {
     font-size: 0.78rem;
     padding: 0.55rem 0.4rem;
+  }
+  .purchase-quick-btn {
+    font-size: 0.78rem;
+    padding: 0.55rem 0.75rem;
+  }
+  .purchase-quick-btn .quick-date {
+    font-size: 0.68rem;
   }
 }
