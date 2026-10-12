@@ -2,18 +2,20 @@
    ALATIKA PRO — storage.js
    Sloj za čuvanje podataka.
    - localStorage: podešavanja, jezik, tema, PIN hash
-   - IndexedDB: glavni podaci (podsetnici, računi, dokumenta, novac)
+   - IndexedDB: glavni podaci (podsetnici, računi, rate, čekovi, fajlovi)
    ========================================================= */
 
 (function (global) {
   'use strict';
 
   const DB_NAME = 'alatikapro';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;   /* PODIGNUTO SA 1 NA 2 — dodati checks i rates */
 
   const STORES = {
     reminders: 'reminders',
     bills: 'bills',
+    checks: 'checks',       /* NOVO */
+    rates: 'rates',         /* NOVO */
     items: 'items',
     transactions: 'transactions',
     budgets: 'budgets',
@@ -89,6 +91,10 @@
 
       req.onerror = function () {
         reject(req.error || new Error('Greška pri otvaranju baze.'));
+      };
+
+      req.onblocked = function () {
+        reject(new Error('Baza je blokirana u drugoj kartici. Zatvori druge tabove sa Alatikom.'));
       };
     });
 
