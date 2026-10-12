@@ -3,8 +3,8 @@
    Modul Računi — kompletno:
    - Tab RAČUNI: arhiva sa slikama/PDF-om u IndexedDB
    - Tab RATE: ukupan iznos → podeli na rate, "Plati ratu"
-   - Tab ČEKOVI: kupovina na N čekova, grupisanje po kupovini,
-                 automatska + ručna realizacija, valuta po izboru
+   - Tab ČEKOVI: toggle ukupno/po čeku, kupovina na N čekova,
+                 grupisanje, pametni datumi (DD / MM / GGGG)
    ========================================================= */
 
 (function (global) {
@@ -15,7 +15,6 @@
   const STORE_RATES = 'rates';
   const STORE_FILES = 'files';
   const LS_CUSTOM_CATS = 'bills.customCats';
-  const BUSINESS_DAYS = 5;
 
   const DEFAULT_CATEGORIES = [
     { id: 'electricity', name_sr: 'Struja',                 name_en: 'Electricity' },
@@ -140,27 +139,18 @@
       const img = new Image();
       img.onload = function () {
         URL.revokeObjectURL(url);
-
         const MAX = 1600;
         let w = img.naturalWidth;
         let h = img.naturalHeight;
-
         if (w > MAX || h > MAX) {
-          if (w >= h) {
-            h = Math.round(h * (MAX / w));
-            w = MAX;
-          } else {
-            w = Math.round(w * (MAX / h));
-            h = MAX;
-          }
+          if (w >= h) { h = Math.round(h * (MAX / w)); w = MAX; }
+          else { w = Math.round(w * (MAX / h)); h = MAX; }
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-
         canvas.toBlob(function (blob) {
           if (blob) resolve(blob);
           else resolve(file);
@@ -177,7 +167,6 @@
   function saveFile(file) {
     const id = global.utils.uid('file');
     const now = new Date().toISOString();
-
     return optimizeImage(file).then(function (optimized) {
       const record = {
         id: id,
@@ -321,8 +310,7 @@
     const total = Number(rate.totalAmount) || 0;
     const paid = Number(rate.paidInstallments) || 0;
     const monthly = getRateMonthlyAmount(rate);
-    const remaining = Math.max(0, total - (paid * monthly));
-    return remaining;
+    return Math.max(0, total - (paid * monthly));
   }
 
   function getRatePaidAmount(rate) {
@@ -338,52 +326,7 @@
     return 'active';
   }
 
-  /* ---------- ČEKOVI — GRUPISANJE PO KUPOVINI ---------- */
-
-  /**
-   * Grupiše čekove po purchaseId.
-   * Svaki ček ima purchaseId ako je deo kupovine na više čekova.
-   * Vraća array grupa: [{ purchaseId, seller, purpose, currency, totalAmount, totalChecks, checks: [...], realized: n }]
-   */
-  function groupChecksByPurchase() {
-    const groups = {};
-    const standalone = [];
-
-    state.checks.forEach(function (c) {
-      if (c.purchaseId) {
-        if (!groups[c.purchaseId]) {
-          groups[c.purchaseId] = {
-            purchaseId: c.purchaseId,
-            seller: c.seller || '',
-            purpose: c.purpose || '',
-            currency: c.currency || 'RSD',
-            totalAmount: 0,
-            checks: []
-          };
-        }
-        groups[c.purchaseId].checks.push(c);
-        groups[c.purchaseId].totalAmount += Number(c.amount) || 0;
-      } else {
-        standalone.push(c);
-      }
-    });
-
-    /* Ažuriraj brojače */
-    const result = Object.keys(groups).map(function (pid) {
-      const g = groups[pid];
-      g.checks.sort(function (a, b) {
-        return (a.realizeDate || '').localeCompare(b.realizeDate || '');
-      });
-      g.totalChecks = g.checks.length;
-      g.realized = g.checks.filter(function (c) { return c.realized; }).length;
-      g.firstDate = g.checks[0] ? g.checks[0].realizeDate : '';
-      g.lastDate = g.checks[g.checks.length - 1] ? g.checks[g.checks.length - 1].realizeDate : '';
-      g.pending = g.totalChecks - g.realized;
-      return g;
-    });
-
-    return { groups: result, standalone: standalone };
-  }
+  /* ---------- ČEKOVI ---------- */
 
   function getCheckStatus(check) {
     if (check.realized) return 'realized';
@@ -745,11 +688,10 @@
   }
 
   /* =========================================================
-     TAB 2 — RATE (ukupan iznos → podeli na rate)
+     TAB 2 — RATE
      ========================================================= */
 
   function renderRatesTab(view) {
-    /* Sažetak */
     const summary = document.createElement('div');
     summary.className = 'bills-summary';
 
@@ -778,7 +720,6 @@
     ].join('');
     view.appendChild(summary);
 
-    /* Filteri */
     const filters = document.createElement('div');
     filters.className = 'bills-filters';
     const defs = [
@@ -803,7 +744,6 @@
     });
     view.appendChild(filters);
 
-    /* Pretraga */
     const search = document.createElement('div');
     search.className = 'bills-search';
     search.innerHTML = [
@@ -818,7 +758,6 @@
       if (listWrap) renderRatesList(listWrap);
     }, 180));
 
-    /* Lista */
     const listWrap = document.createElement('div');
     listWrap.className = 'bills-list';
     view.appendChild(listWrap);
@@ -890,7 +829,6 @@
       body.appendChild(bank);
     }
 
-    /* Progress bar */
     const progressWrap = document.createElement('div');
     progressWrap.className = 'rate-progress';
     progressWrap.innerHTML = [
@@ -904,7 +842,6 @@
     ].join('');
     body.appendChild(progressWrap);
 
-    /* Info: mesečno + ostalo */
     const info = document.createElement('div');
     info.className = 'rate-remaining';
     info.innerHTML = [
@@ -914,7 +851,6 @@
     ].join('');
     body.appendChild(info);
 
-    /* Meta */
     const meta = document.createElement('div');
     meta.className = 'rate-meta';
 
@@ -933,10 +869,8 @@
     meta.appendChild(statusEl);
 
     body.appendChild(meta);
-
     item.appendChild(body);
 
-    /* Dugme "Plati ratu" — direktno u listi */
     if (status === 'active') {
       const payBtn = document.createElement('button');
       payBtn.type = 'button';
@@ -960,7 +894,7 @@
     }
 
     item.addEventListener('click', function (e) {
-      if (e.target === item || item.contains(e.target) && !e.target.closest('.rate-pay-btn')) {
+      if (e.target === item || (item.contains(e.target) && !e.target.closest('.rate-pay-btn'))) {
         openRateDetail(r);
       }
     });
@@ -971,10 +905,8 @@
   function payRate(r, btn) {
     const total = Number(r.totalInstallments) || 0;
     const paid = Number(r.paidInstallments) || 0;
-
     if (paid >= total) return;
 
-    /* Animacija */
     if (btn) {
       btn.classList.add('paying');
       btn.disabled = true;
@@ -988,16 +920,14 @@
     }
 
     global.storage.save(STORE_RATES, r).then(function () {
-      if (global.home) {
-        global.home.showToast(t('rates.paidToast', 'Rata plaćena!'));
-      }
+      if (global.home) global.home.showToast(t('rates.paidToast', 'Rata plaćena!'));
       loadAll().then(function () {
         const view = document.getElementById('view-bills');
         if (view) refreshAll(view);
       });
     });
   }  /* =========================================================
-     TAB 3 — ČEKOVI (grupisano po kupovini)
+     TAB 3 — ČEKOVI (toggle ukupno/po čeku, grupisanje po kupovini)
      ========================================================= */
 
   function renderChecksTab(view) {
@@ -1036,7 +966,6 @@
       view.appendChild(msg);
     }
 
-    /* Filteri */
     const filters = document.createElement('div');
     filters.className = 'bills-filters';
     const defs = [
@@ -1072,7 +1001,6 @@
   function renderChecksList(listWrap) {
     listWrap.innerHTML = '';
 
-    /* Filtriraj čekove po mesecu i statusu */
     let filtered = state.checks.slice();
 
     if (state.month) {
@@ -1099,7 +1027,6 @@
       return;
     }
 
-    /* Grupiši po purchaseId */
     const grouped = {};
     const standalone = [];
 
@@ -1112,21 +1039,19 @@
       }
     });
 
-    /* Prikaži grupe (kupovine) */
     Object.keys(grouped).forEach(function (pid) {
       const checks = grouped[pid].sort(function (a, b) {
         return (a.realizeDate || '').localeCompare(b.realizeDate || '');
       });
-      listWrap.appendChild(buildPurchaseGroup(pid, checks));
+      listWrap.appendChild(buildPurchaseGroup(checks));
     });
 
-    /* Prikaži pojedinačne čekove */
     standalone.forEach(function (c) {
       listWrap.appendChild(buildCheckItem(c));
     });
   }
 
-  function buildPurchaseGroup(purchaseId, checks) {
+  function buildPurchaseGroup(checks) {
     const first = checks[0];
     const total = checks.length;
     const realized = checks.filter(function (c) { return c.realized; }).length;
@@ -1139,7 +1064,6 @@
     const group = document.createElement('div');
     group.className = 'purchase-group';
 
-    /* Header */
     const header = document.createElement('button');
     header.type = 'button';
     header.className = 'purchase-header';
@@ -1169,7 +1093,6 @@
 
     group.appendChild(header);
 
-    /* Lista čekova — skrivena po defaultu */
     const details = document.createElement('div');
     details.className = 'purchase-details';
     details.style.display = 'none';
@@ -1180,7 +1103,6 @@
 
     group.appendChild(details);
 
-    /* Toggle */
     header.addEventListener('click', function () {
       const isOpen = details.style.display !== 'none';
       details.style.display = isOpen ? 'none' : 'block';
@@ -1191,7 +1113,6 @@
   }
 
   function buildCheckItem(c) {
-    const status = getCheckStatus(c);
     const days = c.realizeDate ? global.utils.daysFromToday(c.realizeDate) : null;
     const currency = c.currency || 'RSD';
     const flag = global.currencies.getFlag(currency);
@@ -1201,7 +1122,6 @@
     item.setAttribute('role', 'button');
     item.setAttribute('tabindex', '0');
 
-    /* Checkbox */
     const check = document.createElement('button');
     check.type = 'button';
     check.className = 'rem-check' + (c.realized ? ' done' : '');
@@ -1217,7 +1137,6 @@
     });
     item.appendChild(check);
 
-    /* Body */
     const body = document.createElement('div');
     body.className = 'check-body';
 
@@ -1255,7 +1174,6 @@
     body.appendChild(meta);
     item.appendChild(body);
 
-    /* Amount */
     const amount = document.createElement('div');
     amount.className = 'bill-amount';
     amount.innerHTML = formatAmount(c.amount || 0) +
@@ -1325,10 +1243,11 @@
   }
 
   /* =========================================================
-     FORMA — ČEK (kupovina na N čekova)
+     FORMA — ČEK (toggle ukupno / po čeku, pametan datum)
      ========================================================= */
 
   let formOverlay = null;
+  let currentAttachment = { id: null, isNew: false, removed: false };
 
   function openCheckForm() {
     if (formOverlay) return;
@@ -1351,20 +1270,32 @@
       '  <h3 class="modal-title">' + t('checks.new', 'Nova kupovina čekovima') + '</h3>',
       '  <form id="checkForm" novalidate>',
 
+      /* Purpose */
       '    <div class="form-group">',
       '      <label class="label">' + t('checks.field.purpose', 'Šta je kupljeno') + ' *</label>',
       '      <input class="input" type="text" name="purpose" required placeholder="' + t('checks.field.purposePlaceholder', 'npr. Patike') + '" />',
       '    </div>',
 
+      /* Seller */
       '    <div class="form-group">',
       '      <label class="label">' + t('checks.field.seller', 'Gde je kupljeno') + '</label>',
       '      <input class="input" type="text" name="seller" placeholder="' + t('checks.field.sellerPlaceholder', 'npr. N Sport') + '" />',
       '    </div>',
 
+      /* Amount toggle */
+      '    <div class="form-group">',
+      '      <label class="label">' + t('checks.field.amountMode', 'Način unosa iznosa') + '</label>',
+      '      <div class="amount-mode-toggle" id="amountModeToggle">',
+      '        <button type="button" class="amt-mode-btn active" data-mode="total">' + t('checks.mode.total', 'Ukupan iznos') + '</button>',
+      '        <button type="button" class="amt-mode-btn" data-mode="per-check">' + t('checks.mode.perCheck', 'Iznos po čeku') + '</button>',
+      '      </div>',
+      '    </div>',
+
+      /* Amount + currency */
       '    <div class="amount-row">',
       '      <div class="form-group">',
-      '        <label class="label">' + t('checks.field.totalAmount', 'Ukupan iznos') + ' *</label>',
-      '        <input class="input" type="text" inputmode="decimal" name="totalAmount" required placeholder="0,00" />',
+      '        <label class="label" id="amountLabel">' + t('checks.field.totalAmount', 'Ukupan iznos') + ' *</label>',
+      '        <input class="input" type="text" inputmode="decimal" name="amount" required placeholder="0,00" />',
       '      </div>',
       '      <div class="form-group currency-select">',
       '        <label class="label">' + t('checks.field.currency', 'Valuta') + '</label>',
@@ -1372,6 +1303,7 @@
       '      </div>',
       '    </div>',
 
+      /* Number + first date */
       '    <div class="form-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('checks.field.numberOfChecks', 'Broj čekova') + ' *</label>',
@@ -1379,18 +1311,21 @@
       '      </div>',
       '      <div class="form-group">',
       '        <label class="label">' + t('checks.field.firstDate', 'Prva realizacija') + ' *</label>',
-      '        <input class="input" type="date" name="firstDate" required value="' + today + '" />',
+      global.utils.dateInputHTML('firstDate', today, { required: true }),
       '      </div>',
       '    </div>',
 
+      /* Preview */
       '    <div class="check-monthly-preview" id="monthlyPreview"></div>',
 
+      /* Auto realize */
       '    <div class="form-group">',
       '      <label class="label">',
       '        <input type="checkbox" name="autoRealize" checked style="margin-right:0.4rem;" />',
       '        ' + t('checks.field.autoRealize', 'Automatski označi kao realizovano na datum') + '</label>',
       '    </div>',
 
+      /* Note */
       '    <div class="form-group">',
       '      <label class="label">' + t('checks.field.note', 'Napomena') + '</label>',
       '      <textarea class="textarea" name="note"></textarea>',
@@ -1407,24 +1342,51 @@
 
     document.body.appendChild(formOverlay);
 
-    /* Live preview mesečnog iznosa */
-    const totalAmountInput = formOverlay.querySelector('input[name="totalAmount"]');
+    /* Bind date inputs */
+    global.utils.bindDateInputs(formOverlay);
+
+    /* Amount mode toggle */
+    let amountMode = 'total';
+    const toggleBtns = formOverlay.querySelectorAll('.amt-mode-btn');
+    const amountLabel = formOverlay.querySelector('#amountLabel');
+    const amountInput = formOverlay.querySelector('input[name="amount"]');
     const numberOfChecksInput = formOverlay.querySelector('input[name="numberOfChecks"]');
     const previewEl = formOverlay.querySelector('#monthlyPreview');
 
+    toggleBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        amountMode = btn.getAttribute('data-mode');
+        toggleBtns.forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        if (amountMode === 'total') {
+          amountLabel.textContent = t('checks.field.totalAmount', 'Ukupan iznos') + ' *';
+        } else {
+          amountLabel.textContent = t('checks.field.perCheckAmount', 'Iznos po čeku') + ' *';
+        }
+        updatePreview();
+      });
+    });
+
     function updatePreview() {
-      const total = global.utils.parseAmount(totalAmountInput.value);
+      const val = global.utils.parseAmount(amountInput.value);
       const n = Number(numberOfChecksInput.value) || 0;
-      if (total > 0 && n > 0) {
-        const monthly = total / n;
-        previewEl.innerHTML = '<span class="preview-label">' + t('checks.monthlyPreview', 'Mesečno') + ':</span> ' +
-          '<span class="preview-value">' + formatAmount(monthly) + '</span>';
+      if (val > 0 && n > 0) {
+        if (amountMode === 'total') {
+          const monthly = val / n;
+          previewEl.innerHTML = '<span class="preview-label">' + t('checks.monthlyPreview', 'Mesečno') + ':</span> ' +
+            '<span class="preview-value">' + formatAmount(monthly) + '</span>';
+        } else {
+          const total = val * n;
+          previewEl.innerHTML = '<span class="preview-label">' + t('checks.totalPreview', 'Ukupno') + ':</span> ' +
+            '<span class="preview-value">' + formatAmount(total) + '</span>';
+        }
       } else {
         previewEl.innerHTML = '';
       }
     }
 
-    totalAmountInput.addEventListener('input', updatePreview);
+    amountInput.addEventListener('input', updatePreview);
     numberOfChecksInput.addEventListener('input', updatePreview);
 
     formOverlay.querySelector('#checkCancel').addEventListener('click', closeForm);
@@ -1433,7 +1395,7 @@
     });
     formOverlay.querySelector('#checkForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      submitCheckForm(formOverlay);
+      submitCheckForm(formOverlay, function () { return amountMode; });
     });
 
     requestAnimationFrame(function () {
@@ -1441,25 +1403,26 @@
     });
   }
 
-  function submitCheckForm(overlay) {
+  function submitCheckForm(overlay, getAmountMode) {
     const form = overlay.querySelector('#checkForm');
     const errEl = overlay.querySelector('#checkFormError');
     errEl.textContent = '';
 
-    const totalAmount = global.utils.parseAmount(form.totalAmount.value);
+    const rawAmount = global.utils.parseAmount(form.amount.value);
     const numberOfChecks = Number(form.numberOfChecks.value) || 0;
     const currency = form.currency.value || 'RSD';
-    const firstDate = form.firstDate.value;
+    const firstDate = global.utils.getDateValue(overlay, 'firstDate');
     const purpose = form.purpose.value.trim();
     const seller = form.seller.value.trim();
     const autoRealize = form.autoRealize.checked;
     const note = form.note.value.trim();
+    const mode = getAmountMode ? getAmountMode() : 'total';
 
     if (!purpose) {
       errEl.textContent = t('checks.err.purpose', 'Opis je obavezan.');
       return;
     }
-    if (!totalAmount || totalAmount <= 0) {
+    if (!rawAmount || rawAmount <= 0) {
       errEl.textContent = t('checks.err.amount', 'Iznos mora biti veći od 0.');
       return;
     }
@@ -1472,11 +1435,19 @@
       return;
     }
 
-    const monthlyAmount = totalAmount / numberOfChecks;
-    const purchaseId = global.utils.uid('purchase');
+    /* Odredi monthly i total na osnovu moda */
+    let monthlyAmount, totalAmount;
+    if (mode === 'total') {
+      totalAmount = rawAmount;
+      monthlyAmount = rawAmount / numberOfChecks;
+    } else {
+      monthlyAmount = rawAmount;
+      totalAmount = rawAmount * numberOfChecks;
+    }
 
-    /* Generiši N čekova */
+    const purchaseId = global.utils.uid('purchase');
     const promises = [];
+
     for (let i = 0; i < numberOfChecks; i++) {
       const realizeDate = global.utils.addMonths(firstDate, i);
       const check = {
@@ -1561,7 +1532,7 @@
   }
 
   /* =========================================================
-     FORMA — RATA (ukupan iznos → podeli na rate)
+     FORMA — RATA (pametan datum)
      ========================================================= */
 
   function openRateForm(existing) {
@@ -1604,7 +1575,6 @@
       '      <label class="label">' + t('rates.field.bank', 'Banka / primalac') + '</label>',
       '      <input class="input" type="text" name="bank" value="' + global.utils.escapeHtml(item.bank || '') + '" placeholder="' + t('rates.field.bankPlaceholder', 'npr. Banca Intesa') + '" />',
       '    </div>',
-
       '    <div class="amount-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('rates.field.totalAmount', 'Ukupan iznos') + ' *</label>',
@@ -1615,7 +1585,6 @@
       '        <select class="select" name="currency">' + currencyOptions + '</select>',
       '      </div>',
       '    </div>',
-
       '    <div class="form-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('rates.field.totalInstallments', 'Broj rata') + ' *</label>',
@@ -1626,25 +1595,21 @@
       '        <input class="input" type="number" min="1" max="28" name="dayOfMonth" value="' + (item.dayOfMonth || 15) + '" />',
       '      </div>',
       '    </div>',
-
       '    <div class="check-monthly-preview" id="rateMonthlyPreview"></div>',
-
       '    <div class="form-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('rates.field.startDate', 'Datum početka') + '</label>',
-      '        <input class="input" type="date" name="startDate" value="' + global.utils.escapeHtml(item.startDate || '') + '" />',
+      global.utils.dateInputHTML('startDate', item.startDate || '', {}),
       '      </div>',
       '      <div class="form-group">',
       '        <label class="label">' + t('rates.field.paidInstallments', 'Plaćeno rata') + '</label>',
       '        <input class="input" type="number" min="0" name="paidInstallments" value="' + (item.paidInstallments || 0) + '" />',
       '      </div>',
       '    </div>',
-
       '    <div class="form-group">',
       '      <label class="label">' + t('rates.field.notes', 'Napomena') + '</label>',
       '      <textarea class="textarea" name="notes">' + global.utils.escapeHtml(item.notes || '') + '</textarea>',
       '    </div>',
-
       '    <div class="form-error" id="rateFormError"></div>',
       '    <div class="modal-actions">',
       '      <button type="button" class="btn btn-secondary" id="rateCancel">' + t('common.cancel', 'Otkaži') + '</button>',
@@ -1655,8 +1620,8 @@
     ].join('');
 
     document.body.appendChild(formOverlay);
+    global.utils.bindDateInputs(formOverlay);
 
-    /* Live preview */
     const totalAmountInput = formOverlay.querySelector('input[name="totalAmount"]');
     const installmentsInput = formOverlay.querySelector('input[name="totalInstallments"]');
     const previewEl = formOverlay.querySelector('#rateMonthlyPreview');
@@ -1698,6 +1663,7 @@
 
     const totalAmount = global.utils.parseAmount(form.totalAmount.value);
     const totalInstallments = Number(form.totalInstallments.value) || 0;
+    const startDate = global.utils.getDateValue(overlay, 'startDate');
 
     const data = {
       name: form.name.value.trim(),
@@ -1705,7 +1671,7 @@
       totalAmount: totalAmount,
       currency: form.currency.value || 'RSD',
       dayOfMonth: Number(form.dayOfMonth.value) || 15,
-      startDate: form.startDate.value,
+      startDate: startDate,
       totalInstallments: totalInstallments,
       paidInstallments: Number(form.paidInstallments.value) || 0,
       notes: form.notes.value.trim(),
@@ -1839,10 +1805,8 @@
   }
 
   /* =========================================================
-     FORMA — RAČUN (sa upload slikom)
+     FORMA — RAČUN (pametni datumi, upload)
      ========================================================= */
-
-  let currentAttachment = { id: null, isNew: false, removed: false };
 
   function openBillForm(existing) {
     if (formOverlay) return;
@@ -1933,19 +1897,19 @@
       '        </div>',
       '        <div class="form-group">',
       '          <label class="label">' + t('bills.field.issueDate', 'Datum izdavanja') + '</label>',
-      '          <input class="input" type="date" name="issueDate" value="' + global.utils.escapeHtml(item.issueDate || '') + '" />',
+      global.utils.dateInputHTML('issueDate', item.issueDate || '', {}),
       '        </div>',
       '      </div>',
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.dueDate', 'Rok plaćanja') + '</label>',
-      '        <input class="input" type="date" name="dueDate" value="' + global.utils.escapeHtml(item.dueDate || '') + '" />',
+      global.utils.dateInputHTML('dueDate', item.dueDate || '', {}),
       '      </div>',
       '      <div class="form-group">',
       '        <label class="label"><input type="checkbox" name="paid" ' + (item.paid ? 'checked' : '') + ' style="margin-right:0.4rem;" /> ' + t('bills.field.paid', 'Plaćeno') + '</label>',
       '      </div>',
       '      <div class="form-group" id="paidDateGroup" style="' + (item.paid ? '' : 'display:none;') + '">',
       '        <label class="label">' + t('bills.field.paidDate', 'Datum plaćanja') + '</label>',
-      '        <input class="input" type="date" name="paidDate" value="' + global.utils.escapeHtml(item.paidDate || '') + '" />',
+      global.utils.dateInputHTML('paidDate', item.paidDate || '', {}),
       '      </div>',
       '    </div>',
       '    <div class="bill-form-section">',
@@ -1969,6 +1933,7 @@
     ].join('');
 
     document.body.appendChild(formOverlay);
+    global.utils.bindDateInputs(formOverlay);
 
     renderUploadArea(formOverlay.querySelector('#uploadArea'));
 
@@ -1976,8 +1941,11 @@
     const paidDateGroup = formOverlay.querySelector('#paidDateGroup');
     paidCheckbox.addEventListener('change', function () {
       paidDateGroup.style.display = paidCheckbox.checked ? '' : 'none';
-      if (paidCheckbox.checked && !formOverlay.querySelector('input[name="paidDate"]').value) {
-        formOverlay.querySelector('input[name="paidDate"]').value = global.utils.todayISO();
+      if (paidCheckbox.checked) {
+        const current = global.utils.getDateValue(formOverlay, 'paidDate');
+        if (!current) {
+          global.utils.setDateValue(formOverlay, 'paidDate', global.utils.todayISO());
+        }
       }
     });
 
@@ -2104,10 +2072,10 @@
       month: form.month.value,
       amount: global.utils.parseAmount(form.amount.value),
       currency: form.currency.value || 'RSD',
-      issueDate: form.issueDate.value,
-      dueDate: form.dueDate.value,
+      issueDate: global.utils.getDateValue(overlay, 'issueDate'),
+      dueDate: global.utils.getDateValue(overlay, 'dueDate'),
       paid: form.paid.checked,
-      paidDate: form.paidDate.value,
+      paidDate: global.utils.getDateValue(overlay, 'paidDate'),
       reference: form.reference.value.trim(),
       description: form.description.value.trim()
     };
