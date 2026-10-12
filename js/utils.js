@@ -1,10 +1,14 @@
 /* =========================================================
    ALATIKA PRO — utils.js
-   Pomoćne funkcije: datumi, brojevi, validacija, DOM.
+   Pomoćne funkcije: datumi, brojevi, formatiranje, DOM.
+   Podrška za format datuma: DD/MM/YYYY (default) ili MM/DD/YYYY.
    ========================================================= */
 
 (function (global) {
   'use strict';
+
+  const LS_DATE_FORMAT = 'settings.dateFormat';
+  const DEFAULT_DATE_FORMAT = 'DMY';   /* DMY = DD/MM/YYYY, MDY = MM/DD/YYYY */
 
   /* ---------- DOM ---------- */
 
@@ -47,7 +51,7 @@
     while (node && node.firstChild) node.removeChild(node.firstChild);
   }
 
-  /* ---------- ESCAPE (bezbedno ubacivanje u HTML) ---------- */
+  /* ---------- ESCAPE ---------- */
 
   function escapeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -65,6 +69,23 @@
     const t = Date.now().toString(36);
     const r = Math.random().toString(36).slice(2, 8);
     return (prefix ? prefix + '-' : '') + t + r;
+  }
+
+  /* ---------- FORMAT DATUMA ---------- */
+
+  function getDateFormat() {
+    try {
+      const v = localStorage.getItem('alatikapro.' + LS_DATE_FORMAT);
+      if (v === 'DMY' || v === 'MDY') return v;
+    } catch (e) {}
+    return DEFAULT_DATE_FORMAT;
+  }
+
+  function setDateFormat(fmt) {
+    if (fmt !== 'DMY' && fmt !== 'MDY') return;
+    try {
+      localStorage.setItem('alatikapro.' + LS_DATE_FORMAT, fmt);
+    } catch (e) {}
   }
 
   /* ---------- DATUMI ---------- */
@@ -91,13 +112,28 @@
     return isNaN(d.getTime()) ? null : d;
   }
 
-  function formatDate(iso, lang) {
+  /**
+   * Formatira ISO datum prema izabranom formatu.
+   * DMY = DD/MM/YYYY
+   * MDY = MM/DD/YYYY
+   */
+  function formatDate(iso) {
     const d = fromISO(iso);
     if (!d) return '';
-    const locale = lang === 'en' ? 'en-GB' : 'sr-RS';
-    return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const fmt = getDateFormat();
+    if (fmt === 'MDY') {
+      return month + '/' + day + '/' + year;
+    }
+    return day + '/' + month + '/' + year;
   }
 
+  /**
+   * Formatira ISO datum u dugom obliku (npr. "12. oktobar 2026.").
+   * Ovaj oblik ne zavisi od izabranog formata.
+   */
   function formatDateLong(iso, lang) {
     const d = fromISO(iso);
     if (!d) return '';
@@ -135,6 +171,18 @@
     const d = fromISO(iso);
     if (!d) return '';
     d.setDate(d.getDate() + n);
+    return toISODate(d);
+  }
+
+  function addMonths(iso, n) {
+    const d = fromISO(iso);
+    if (!d) return '';
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + n);
+    /* Ako je mesec kratak (npr. 31. u aprilu) — pomeri na poslednji dan */
+    if (d.getDate() < day) {
+      d.setDate(0);
+    }
     return toISODate(d);
   }
 
@@ -269,6 +317,10 @@
     isToday: isToday,
     isTomorrow: isTomorrow,
     addDays: addDays,
+    addMonths: addMonths,
+
+    getDateFormat: getDateFormat,
+    setDateFormat: setDateFormat,
 
     parseAmount: parseAmount,
     formatAmount: formatAmount,
