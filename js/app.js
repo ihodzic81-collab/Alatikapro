@@ -71,6 +71,12 @@
     }
   }
 
+  function initReminders() {
+    if (global.reminders && global.reminders.init) {
+      global.reminders.init();
+    }
+  }
+
   function applyInitialState() {
     if (!global.appState) return;
     const s = global.appState.state;
@@ -81,7 +87,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — sesija 2 spremna.',
+      '%cAlatika Pro%c v1.0.0 — sesija 3 spremna.',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -94,6 +100,7 @@
       initSettings();
       initRouter();
       initHome();
+      initReminders();
       applyInitialState();
       logStatus();
     } catch (err) {
