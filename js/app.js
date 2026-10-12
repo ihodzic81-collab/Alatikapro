@@ -83,6 +83,12 @@
     }
   }
 
+  function initItems() {
+    if (global.items && global.items.init) {
+      global.items.init();
+    }
+  }
+
   /**
    * Univerzalno back dugme.
    * Radi na svim elementima sa atributom [data-back].
@@ -99,31 +105,20 @@
   }
 
   /**
-   * Automatska realizacija čekova — pokreće se periodično
-   * dok je aplikacija otvorena (na svakih 30 minuta) i pri startu.
+   * Automatska realizacija čekova — pokreće se pri startu
+   * i periodično na svakih 30 minuta dok je aplikacija otvorena.
    */
   function startChecksAutoRealize() {
     if (!global.bills || !global.bills.autoRealizeChecks) return;
 
-    /* Odmah pri startu */
     global.bills.autoRealizeChecks().then(function (changed) {
       if (changed > 0) {
-        /* Ponovo učitaj i renderuj ako je bilo promena */
         if (global.bills.loadAll) {
-          global.bills.loadAll().then(function () {
-            const v = document.getElementById('view-bills');
-            if (v && global.router && global.router.current &&
-                global.router.current() === 'bills') {
-              /* Trigger re-render */
-              const event = new Event('alatikapro:checksAutoRealized');
-              window.dispatchEvent(event);
-            }
-          });
+          global.bills.loadAll();
         }
       }
     });
 
-    /* Periodično — na svakih 30 minuta */
     setInterval(function () {
       global.bills.autoRealizeChecks();
     }, 30 * 60 * 1000);
@@ -139,7 +134,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — sesija 4 (Rate + Čekovi + Slike) spremna.',
+      '%cAlatika Pro%c v1.0.0 — Rate + Čekovi + Slike + Moje stvari',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -155,6 +150,7 @@
       initHome();
       initReminders();
       initBills();
+      initItems();
       applyInitialState();
       startChecksAutoRealize();
       logStatus();
