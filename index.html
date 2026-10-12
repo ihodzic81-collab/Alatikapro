@@ -19,6 +19,8 @@
   <link rel="stylesheet" href="css/reminders.css" />
   <link rel="stylesheet" href="css/bills.css" />
   <link rel="stylesheet" href="css/items.css" />
+  <link rel="stylesheet" href="css/money.css" />
+  <link rel="stylesheet" href="css/rates.css" />
 </head>
 <body>
   <div id="app">
@@ -74,9 +76,7 @@
 
         <div class="home-section" id="homeRatesSection">
           <h2 class="home-section-title" data-i18n="home.rates">Kursna lista</h2>
-          <div class="card rates-card" id="homeRates">
-            <p class="text-muted text-sm" data-i18n="home.ratesPlaceholder">Kursna lista dolazi u Sesiji 6.</p>
-          </div>
+          <div class="card" id="homeRates"></div>
         </div>
 
         <div class="home-section">
@@ -193,9 +193,6 @@
             </svg>
           </button>
         </div>
-        <div class="empty-state">
-          <p data-i18n="money.placeholder">Ovde će biti tvoji prihodi i rashodi.</p>
-        </div>
       </section>
 
     </main>
@@ -248,6 +245,9 @@
   <script src="js/state.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/currencies.js"></script>
+  <script src="js/nbs.js"></script>
+  <script src="js/converter.js"></script>
+  <script src="js/rates-widget.js"></script>
   <script src="js/router.js"></script>
   <script src="js/pin.js"></script>
   <script src="js/pin-ui.js"></script>
@@ -256,6 +256,7 @@
   <script src="js/reminders.js"></script>
   <script src="js/bills.js"></script>
   <script src="js/items.js"></script>
+  <script src="js/money.js"></script>
   <script src="js/app.js"></script>
 
   <script>
