@@ -89,9 +89,24 @@
     }
   }
 
+  function initMoney() {
+    if (global.money && global.money.init) {
+      global.money.init();
+    }
+  }
+
+  /**
+   * Inicijalizuje kursnu listu na Početnoj (mali widget).
+   */
+  function initHomeRates() {
+    if (!global.ratesWidget) return;
+    const el = document.getElementById('homeRates');
+    if (!el) return;
+    global.ratesWidget.renderHomeWidget(el);
+  }
+
   /**
    * Univerzalno back dugme.
-   * Radi na svim elementima sa atributom [data-back].
    */
   function initBackButtons() {
     document.addEventListener('click', function (e) {
@@ -106,22 +121,37 @@
 
   /**
    * Automatska realizacija čekova — pokreće se pri startu
-   * i periodično na svakih 30 minuta dok je aplikacija otvorena.
+   * i periodično na svakih 30 minuta.
    */
   function startChecksAutoRealize() {
     if (!global.bills || !global.bills.autoRealizeChecks) return;
 
     global.bills.autoRealizeChecks().then(function (changed) {
-      if (changed > 0) {
-        if (global.bills.loadAll) {
-          global.bills.loadAll();
-        }
+      if (changed > 0 && global.bills.loadAll) {
+        global.bills.loadAll();
       }
     });
 
     setInterval(function () {
       global.bills.autoRealizeChecks();
     }, 30 * 60 * 1000);
+  }
+
+  /**
+   * Osvežava kursnu listu u pozadini (1x dnevno).
+   */
+  function startRatesRefresh() {
+    if (!global.nbs) return;
+    /* Povuci odmah pri startu — NBS sam proverava keš */
+    global.nbs.getRates().then(function () {
+      /* Osveži home widget ako postoji */
+      const homeRates = document.getElementById('homeRates');
+      if (homeRates && global.ratesWidget) {
+        global.ratesWidget.renderHomeWidget(homeRates);
+      }
+    }).catch(function () {
+      /* Tiho — greška se vidi u widgetu */
+    });
   }
 
   function applyInitialState() {
@@ -134,7 +164,7 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — Rate + Čekovi + Slike + Moje stvari',
+      '%cAlatika Pro%c v1.0.0 — kompletna aplikacija',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
@@ -151,8 +181,11 @@
       initReminders();
       initBills();
       initItems();
+      initMoney();
+      initHomeRates();
       applyInitialState();
       startChecksAutoRealize();
+      startRatesRefresh();
       logStatus();
     } catch (err) {
       if (global.console && console.error) {
