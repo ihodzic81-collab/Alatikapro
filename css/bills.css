@@ -31,7 +31,7 @@
 }
 
 /* =====================
-   TABOVI (Računi / Rate / Čekovi)
+   TABOVI
    ===================== */
 .bills-tabs {
   display: flex;
@@ -63,7 +63,7 @@
 }
 
 /* =====================
-   MESEC/GODINA PREBACIVANJE
+   MESEC NAV
    ===================== */
 .month-nav {
   display: flex;
@@ -102,7 +102,7 @@
 }
 
 /* =====================
-   SAŽETAK (brojevi na vrhu)
+   SAŽETAK
    ===================== */
 .bills-summary {
   display: grid;
@@ -237,7 +237,7 @@
 }
 
 /* =====================
-   LISTA RAČUNA
+   LISTA
    ===================== */
 .bills-list {
   display: flex;
@@ -245,6 +245,9 @@
   gap: 0.5rem;
 }
 
+/* =====================
+   RAČUN — stavka
+   ===================== */
 .bill-item {
   display: flex;
   align-items: flex-start;
@@ -421,7 +424,7 @@
   justify-content: center;
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
   z-index: 55;
-  transition: transform 0.1s ease, background-color 0.15s ease;
+  transition: transform 0.1s ease, background-color 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -550,7 +553,7 @@
 }
 
 /* =====================
-   DETALJI (modal)
+   DETALJI
    ===================== */
 .detail-row {
   display: flex;
@@ -580,13 +583,14 @@
 }
 
 /* =====================
-   RATE — progress bar
+   RATE — kartica
    ===================== */
 .rate-item {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 0.75rem;
-  padding: 0.85rem;
+  padding: 0.95rem;
   background-color: var(--color-surface);
   border-radius: 14px;
   border: 1px solid var(--color-border-subtle);
@@ -597,6 +601,7 @@
   font: inherit;
   color: inherit;
   width: 100%;
+  position: relative;
 }
 
 .rate-item:active {
@@ -608,7 +613,7 @@
 }
 
 .rate-item.finished {
-  opacity: 0.65;
+  opacity: 0.7;
   border-left: 3px solid var(--color-success);
 }
 
@@ -692,13 +697,86 @@
 .rate-remaining {
   font-size: 0.78rem;
   color: var(--color-text-muted);
-  margin-top: 0.4rem;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+.rate-remaining strong {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .rate-remaining .currency-code {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-subtle);
+}
+
+/* Dugme "Plati ratu" u listi */
+.rate-pay-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 76px;
+  padding: 0.5rem 0.6rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10B981, #059669);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transition: transform 0.08s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rate-pay-btn:hover {
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.rate-pay-btn:active {
+  transform: scale(0.96);
+}
+
+.rate-pay-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rate-pay-btn.paying {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.rate-done-badge {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background-color: rgba(34, 197, 94, 0.12);
+  color: var(--color-success);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Dugme "Plati sledeću ratu" u detaljima */
+.rate-pay-big {
+  background: linear-gradient(135deg, #10B981, #059669) !important;
+  border: none;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  font-weight: 700;
+  min-height: 52px;
+  gap: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* =====================
@@ -731,10 +809,10 @@
 .check-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.85rem;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
   background-color: var(--color-surface);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -742,6 +820,7 @@
   text-align: left;
   color: inherit;
   width: 100%;
+  margin-bottom: 0.4rem;
 }
 
 .check-item:active {
@@ -754,7 +833,7 @@
 
 .check-item.realized {
   border-left: 3px solid var(--color-success);
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .check-body {
@@ -762,19 +841,10 @@
   min-width: 0;
 }
 
-.check-name {
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: var(--color-text);
-  line-height: 1.25;
-  word-break: break-word;
-}
-
 .check-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.35rem;
   font-size: 0.78rem;
   color: var(--color-text-muted);
   align-items: center;
@@ -808,6 +878,128 @@
 }
 
 /* =====================
+   KUPOVINA — grupa čekova
+   ===================== */
+.purchase-group {
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+
+.purchase-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  background: transparent;
+  border: none;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.purchase-header:hover {
+  background-color: var(--color-surface-2);
+}
+
+.purchase-header-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.purchase-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.purchase-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+.purchase-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.4rem;
+  align-items: center;
+}
+
+.purchase-meta .currency-code {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.purchase-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease, background-color 0.15s ease;
+}
+
+.purchase-header.open .purchase-toggle {
+  transform: rotate(180deg);
+  background-color: var(--color-surface-2);
+}
+
+.purchase-details {
+  padding: 0 0.75rem 0.75rem;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 0.6rem;
+}
+
+/* =====================
+   PREVIEW mesečnog iznosa (u formi)
+   ===================== */
+.check-monthly-preview {
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.10), rgba(139, 92, 246, 0.06));
+  border-radius: 12px;
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  font-size: 0.95rem;
+  color: var(--color-text);
+  text-align: center;
+  margin-bottom: 0.85rem;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.check-monthly-preview:empty {
+  display: none;
+}
+
+.check-monthly-preview .preview-label {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.check-monthly-preview .preview-value {
+  font-weight: 700;
+  color: #6C5CE7;
+  font-size: 1.1rem;
+}
+
+/* =====================
    MALE PRILAGODBE
    ===================== */
 @media (max-width: 360px) {
@@ -834,5 +1026,13 @@
   .bill-thumb svg {
     width: 20px;
     height: 20px;
+  }
+  .rate-pay-btn {
+    min-width: 60px;
+    font-size: 0.68rem;
+  }
+  .rate-pay-btn svg {
+    width: 16px;
+    height: 16px;
   }
 }
