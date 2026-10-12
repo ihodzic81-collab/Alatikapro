@@ -1,14 +1,18 @@
 /* =========================================================
    ALATIKA PRO — utils.js
-   Pomoćne funkcije: datumi, brojevi, formatiranje, DOM.
-   Podrška za format datuma: DD/MM/YYYY (default) ili MM/DD/YYYY.
+   Pomoćne funkcije + pametan date input:
+   - Korisnik kuca samo cifre: 2 5 1 2 2 0 2 6
+   - Program sam dodaje " / " separator: 25 / 12 / 2026
+   - Klik na kalendar → native picker
+   - Podrška za DD/MM/GGGG (default) i MM/DD/GGGG
    ========================================================= */
 
 (function (global) {
   'use strict';
 
   const LS_DATE_FORMAT = 'settings.dateFormat';
-  const DEFAULT_DATE_FORMAT = 'DMY';   /* DMY = DD/MM/YYYY, MDY = MM/DD/YYYY */
+  const DEFAULT_DATE_FORMAT = 'DMY';
+  const SEP = ' / ';
 
   /* ---------- DOM ---------- */
 
@@ -113,9 +117,9 @@
   }
 
   /**
-   * Formatira ISO datum prema izabranom formatu.
-   * DMY = DD/MM/YYYY
-   * MDY = MM/DD/YYYY
+   * Formatira ISO datum u tekstualni prikaz.
+   * DMY = DD / MM / YYYY
+   * MDY = MM / DD / YYYY
    */
   function formatDate(iso) {
     const d = fromISO(iso);
@@ -125,20 +129,105 @@
     const year = d.getFullYear();
     const fmt = getDateFormat();
     if (fmt === 'MDY') {
-      return month + '/' + day + '/' + year;
+      return month + SEP + day + SEP + year;
     }
-    return day + '/' + month + '/' + year;
+    return day + SEP + month + SEP + year;
   }
 
-  /**
-   * Formatira ISO datum u dugom obliku (npr. "12. oktobar 2026.").
-   * Ovaj oblik ne zavisi od izabranog formata.
-   */
   function formatDateLong(iso, lang) {
     const d = fromISO(iso);
     if (!d) return '';
     const locale = lang === 'en' ? 'en-GB' : 'sr-RS';
     return d.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  /**
+   * Parsira tekstualni datum u bilo kom formatu (razmaci, crtice, tačke, kose crte)
+   * Vraća ISO datum "YYYY-MM-DD" ili '' ako ne može.
+   * Prihvata:
+   *   "25 / 12 / 2026"
+   *   "25/12/2026"
+   *   "25-12-2026"
+   *   "25.12.2026"
+   *   "25 12 2026"
+   *   "25122026" (8 cifara)
+   */
+  function parseDateInput(text) {
+    if (!text) return '';
+    let s = String(text).trim();
+    if (!s) return '';
+
+    /* Ako je već u ISO formatu */
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    /* Ako je samo 8 cifara — pretvori u DD/MM/YYYY */
+    const digitsOnly = s.replace(/\D/g, '');
+    if (digitsOnly.length === 8) {
+      const a = digitsOnly.slice(0, 2);
+      const b = digitsOnly.slice(2, 4);
+      const y = digitsOnly.slice(4, 8);
+      return buildISO(a, b, y);
+    }
+    if (digitsOnly.length === 6) {
+      /* DD MM YY */
+      const a = digitsOnly.slice(0, 2);
+      const b = digitsOnly.slice(2, 4);
+      let y = digitsOnly.slice(4, 6);
+      y = Number(y) < 50 ? '20' + y : '19' + y;
+      return buildISO(a, b, y);
+    }
+
+    /* Izdvoji brojeve */
+    const nums = s.match(/\d+/g);
+    if (!nums || nums.length !== 3) return '';
+
+    let a = nums[0].padStart(2, '0');
+    let b = nums[1].padStart(2, '0');
+    let y = nums[2];
+    if (y.length === 2) {
+      y = Number(y) < 50 ? '20' + y : '19' + y;
+    }
+    if (y.length !== 4) return '';
+
+    return buildISO(a, b, y);
+  }
+
+  function buildISO(a, b, y) {
+    let day, month;
+    const fmt = getDateFormat();
+
+    const na = Number(a);
+    const nb = Number(b);
+
+    if (fmt === 'MDY') {
+      month = na;
+      day = nb;
+    } else {
+      day = na;
+      month = nb;
+    }
+
+    /* Ako je jedan > 12 a drugi <= 12 → zameni */
+    if (day > 12 && month > 12) return '';
+    if (day > 12 && month <= 12) {
+      /* OK */
+    } else if (month > 12 && day <= 12) {
+      const tmp = day;
+      day = month;
+      month = tmp;
+    }
+
+    const yi = Number(y);
+    if (month < 1 || month > 12) return '';
+    if (day < 1 || day > 31) return '';
+    if (yi < 1900 || yi > 2200) return '';
+
+    const d = new Date(yi, month - 1, day);
+    if (isNaN(d.getTime())) return '';
+    if (d.getMonth() !== month - 1) return '';
+    if (d.getDate() !== day) return '';
+
+    return toISODate(d);
   }
 
   function daysBetween(isoA, isoB) {
@@ -179,11 +268,224 @@
     if (!d) return '';
     const day = d.getDate();
     d.setMonth(d.getMonth() + n);
-    /* Ako je mesec kratak (npr. 31. u aprilu) — pomeri na poslednji dan */
     if (d.getDate() < day) {
       d.setDate(0);
     }
     return toISODate(d);
+  }
+
+  /* ---------- PAMETAN DATE INPUT SA MASKOM ---------- */
+
+  /**
+   * Vraća HTML string za pametno datum polje.
+   */
+  function dateInputHTML(name, value, opts) {
+    opts = opts || {};
+    const id = 'dateinput-' + name + '-' + Math.random().toString(36).slice(2, 8);
+    const isoValue = value || '';
+    const displayValue = isoValue ? formatDate(isoValue) : '';
+    const required = opts.required ? 'required' : '';
+    const placeholder = opts.placeholder || (getDateFormat() === 'MDY' ? 'MM / DD / GGGG' : 'DD / MM / GGGG');
+    const className = opts.className || 'input';
+
+    return [
+      '<div class="smart-date" data-smart-date="' + name + '">',
+      '  <input type="text" inputmode="numeric" class="' + className + '" ',
+      '         name="' + name + '" ',
+      '         id="' + id + '" ',
+      '         value="' + escapeHtml(displayValue) + '" ',
+      '         placeholder="' + placeholder + '" ',
+      '         autocomplete="off" ',
+      '         maxlength="14" ',
+      '         ' + required + ' ',
+      '         data-smart-display />',
+      '  <button type="button" class="smart-date-icon" tabindex="-1" aria-label="Kalendar">',
+      '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
+      '      <rect x="3" y="5" width="18" height="16" rx="2"></rect>',
+      '      <line x1="3" y1="10" x2="21" y2="10"></line>',
+      '      <line x1="8" y1="3" x2="8" y2="7"></line>',
+      '      <line x1="16" y1="3" x2="16" y2="7"></line>',
+      '    </svg>',
+      '  </button>',
+      '  <input type="date" class="smart-date-hidden" name="' + name + '_native" value="' + escapeHtml(isoValue) + '" tabindex="-1" aria-hidden="true" data-smart-native />',
+      '</div>'
+    ].join('');
+  }
+
+  /**
+   * Primenjuje masku na tekstualno polje:
+   * - Dozvoljava samo cifre
+   * - Automatski dodaje " / " separator posle 2. i 4. cifre
+   * - Postavlja kursor na kraj
+   */
+  function attachDateMask(display, native) {
+    if (!display) return;
+
+    display.addEventListener('keydown', function (e) {
+      /* Dozvoli navigacione tastere */
+      const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End', 'Escape'];
+      if (allowed.indexOf(e.key) !== -1) return;
+      /* Dozvoli Ctrl/Cmd kombinacije (copy/paste/select all) */
+      if (e.ctrlKey || e.metaKey) return;
+      /* Dozvoli samo cifre */
+      if (!/^\d$/.test(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    display.addEventListener('input', function (e) {
+      const input = e.target;
+      const cursorWasAtEnd = input.selectionStart === input.value.length;
+
+      /* Izvuci samo cifre */
+      let digits = input.value.replace(/\D/g, '');
+
+      /* Ograniči na 8 cifara */
+      if (digits.length > 8) digits = digits.slice(0, 8);
+
+      /* Formatiraj sa " / " */
+      let formatted = '';
+      if (digits.length <= 2) {
+        formatted = digits;
+      } else if (digits.length <= 4) {
+        formatted = digits.slice(0, 2) + SEP + digits.slice(2);
+      } else {
+        formatted = digits.slice(0, 2) + SEP + digits.slice(2, 4) + SEP + digits.slice(4);
+      }
+
+      /* Ako je novo formatiranje različito od unosa, zameni */
+      if (input.value !== formatted) {
+        input.value = formatted;
+        if (cursorWasAtEnd) {
+          /* Kursor na kraj */
+          input.setSelectionRange(formatted.length, formatted.length);
+        }
+      }
+
+      /* Ažuriraj native i ISO vrednost */
+      const iso = parseDateInput(formatted);
+      if (native) {
+        native.value = iso || '';
+      }
+      if (iso) {
+        display.classList.remove('input-error');
+      } else if (digits.length === 8) {
+        display.classList.add('input-error');
+      } else {
+        display.classList.remove('input-error');
+      }
+    });
+
+    display.addEventListener('blur', function () {
+      const text = display.value.trim();
+      if (!text) {
+        if (native) native.value = '';
+        display.classList.remove('input-error');
+        return;
+      }
+      const iso = parseDateInput(text);
+      if (iso) {
+        display.value = formatDate(iso);
+        if (native) native.value = iso;
+        display.classList.remove('input-error');
+      } else {
+        display.classList.add('input-error');
+      }
+    });
+
+    display.addEventListener('paste', function (e) {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text');
+      const iso = parseDateInput(pasted);
+      if (iso) {
+        display.value = formatDate(iso);
+        if (native) native.value = iso;
+        display.classList.remove('input-error');
+      } else {
+        /* Ako ne može da parsira, samo ubaci cifre */
+        const digits = pasted.replace(/\D/g, '').slice(0, 8);
+        let formatted = '';
+        if (digits.length <= 2) formatted = digits;
+        else if (digits.length <= 4) formatted = digits.slice(0, 2) + SEP + digits.slice(2);
+        else formatted = digits.slice(0, 2) + SEP + digits.slice(2, 4) + SEP + digits.slice(4);
+        display.value = formatted;
+        const iso2 = parseDateInput(formatted);
+        if (native) native.value = iso2 || '';
+      }
+    });
+
+    /* Klik na kalendar */
+    const icon = display.parentNode.querySelector('.smart-date-icon');
+    if (icon && native) {
+      icon.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openNativePicker(native);
+      });
+    }
+
+    /* Promena u native kalendaru */
+    if (native) {
+      native.addEventListener('change', function () {
+        if (native.value) {
+          display.value = formatDate(native.value);
+          display.classList.remove('input-error');
+        } else {
+          display.value = '';
+        }
+      });
+    }
+  }
+
+  function bindDateInputs(root) {
+    root = root || document;
+    const wrappers = root.querySelectorAll('[data-smart-date]');
+
+    wrappers.forEach(function (wrap) {
+      if (wrap.dataset.bound) return;
+      wrap.dataset.bound = '1';
+
+      const display = wrap.querySelector('[data-smart-display]');
+      const native = wrap.querySelector('[data-smart-native]');
+
+      if (!display || !native) return;
+
+      attachDateMask(display, native);
+    });
+  }
+
+  function openNativePicker(native) {
+    if (!native) return;
+    if (typeof native.showPicker === 'function') {
+      try {
+        native.showPicker();
+        return;
+      } catch (e) {}
+    }
+    native.style.display = 'block';
+    native.style.position = 'absolute';
+    native.style.opacity = '0';
+    native.style.pointerEvents = 'none';
+    native.focus();
+    native.click();
+  }
+
+  function getDateValue(root, name) {
+    root = root || document;
+    const wrap = root.querySelector('[data-smart-date="' + name + '"]');
+    if (!wrap) return '';
+    const native = wrap.querySelector('[data-smart-native]');
+    return native ? (native.value || '') : '';
+  }
+
+  function setDateValue(root, name, iso) {
+    root = root || document;
+    const wrap = root.querySelector('[data-smart-date="' + name + '"]');
+    if (!wrap) return;
+    const display = wrap.querySelector('[data-smart-display]');
+    const native = wrap.querySelector('[data-smart-native]');
+    if (display) display.value = iso ? formatDate(iso) : '';
+    if (native) native.value = iso || '';
   }
 
   /* ---------- BROJEVI I VALUTE ---------- */
@@ -311,6 +613,7 @@
     fromISO: fromISO,
     formatDate: formatDate,
     formatDateLong: formatDateLong,
+    parseDateInput: parseDateInput,
     daysBetween: daysBetween,
     daysFromToday: daysFromToday,
     isPast: isPast,
@@ -321,6 +624,12 @@
 
     getDateFormat: getDateFormat,
     setDateFormat: setDateFormat,
+
+    dateInputHTML: dateInputHTML,
+    bindDateInputs: bindDateInputs,
+    attachDateMask: attachDateMask,
+    getDateValue: getDateValue,
+    setDateValue: setDateValue,
 
     parseAmount: parseAmount,
     formatAmount: formatAmount,
