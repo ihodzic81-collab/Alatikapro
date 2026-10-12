@@ -1,0 +1,699 @@
+/* =========================================================
+   ALATIKA PRO — money.css
+   Stilovi za modul Novac.
+   ========================================================= */
+
+/* =====================
+   TABOVI (Transakcije / Budžet / Izveštaj)
+   ===================== */
+.money-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.85rem;
+  padding: 0.25rem;
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+}
+
+.money-tab {
+  flex: 1 1 0;
+  padding: 0.55rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  text-align: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.money-tab.active {
+  background-color: var(--color-surface);
+  color: var(--color-module-money);
+  box-shadow: var(--shadow-sm);
+}
+
+/* =====================
+   SAŽETAK (Prihodi / Rashodi / Razlika)
+   ===================== */
+.money-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.money-stat {
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  border: 1px solid var(--color-border-subtle);
+  position: relative;
+  overflow: hidden;
+}
+
+.money-stat.income::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #22C55E, #16A34A);
+}
+
+.money-stat.expense::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #EF4444, #DC2626);
+}
+
+.money-stat.balance.positive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #6C5CE7, #4F46E5);
+}
+
+.money-stat.balance.negative::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #F59E0B, #D97706);
+}
+
+.money-stat-label {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.2rem;
+}
+
+.money-stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.15;
+}
+
+.money-stat.income .money-stat-value { color: var(--color-success); }
+.money-stat.expense .money-stat-value { color: var(--color-danger); }
+.money-stat.balance.positive .money-stat-value { color: var(--color-brand); }
+.money-stat.balance.negative .money-stat-value { color: var(--color-warning); }
+
+.money-stat-currency {
+  font-size: 0.62rem;
+  color: var(--color-text-subtle);
+  margin-top: 0.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* =====================
+   BUDŽET INDIKATOR (na vrhu liste)
+   ===================== */
+.money-budget-indicator {
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.money-budget-indicator.over {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(239, 68, 68, 0.02));
+}
+
+.money-budget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.money-budget-percent {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.money-budget-indicator.over .money-budget-percent {
+  color: var(--color-danger);
+}
+
+.money-budget-bar {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--color-surface-2);
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.money-budget-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22C55E, #16A34A);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.money-budget-indicator.over .money-budget-fill {
+  background: linear-gradient(90deg, #EF4444, #DC2626);
+}
+
+.money-budget-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.money-budget-over {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* =====================
+   LISTA TRANSAKCIJA
+   ===================== */
+.money-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.money-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.money-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.money-group-totals {
+  display: flex;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.money-day-income { color: var(--color-success); }
+.money-day-expense { color: var(--color-danger); }
+
+.money-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+.money-item:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.money-item:active {
+  transform: scale(0.99);
+}
+
+.money-item-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.money-item-icon.income {
+  background-color: rgba(34, 197, 94, 0.12);
+  color: var(--color-success);
+}
+
+.money-item-icon.expense {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--color-danger);
+}
+
+.money-item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.money-item-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.money-item-meta {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+.money-item-amount {
+  flex: 0 0 auto;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.money-item-amount.income { color: var(--color-success); }
+.money-item-amount.expense { color: var(--color-danger); }
+
+/* =====================
+   BUDŽET VIEW
+   ===================== */
+.money-budget-box {
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-subtle);
+  padding: 1.25rem 1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.budget-circle {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 1rem;
+}
+
+.budget-circle-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.budget-circle-bg {
+  stroke: var(--color-surface-2);
+}
+
+.budget-circle-fill {
+  stroke: #22C55E;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.4s ease;
+}
+
+.budget-circle-fill.over {
+  stroke: #EF4444;
+}
+
+.budget-circle-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.budget-circle-percent {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.budget-circle-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+.budget-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.budget-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 0.9rem;
+}
+
+.budget-row:last-child {
+  border-bottom: 0;
+}
+
+.budget-row span {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.budget-row strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.budget-row strong.budget-spent { color: var(--color-danger); }
+.budget-row strong.budget-remaining { color: var(--color-success); }
+.budget-row strong.budget-over { color: var(--color-danger); }
+
+.budget-warning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.04));
+  border-radius: 12px;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.budget-warning svg {
+  flex: 0 0 auto;
+}
+
+.budget-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.budget-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background-color: rgba(34, 197, 94, 0.10);
+  color: var(--color-module-money);
+  margin-bottom: 0.75rem;
+}
+
+.budget-empty h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.35rem;
+}
+
+.budget-empty p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  max-width: 32ch;
+  margin: 0 auto;
+}
+
+.budget-action {
+  margin-bottom: 1.25rem;
+}
+
+/* =====================
+   KATEGORIJE (liste sa bar-ovima)
+   ===================== */
+.money-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 0.6rem 0.1rem;
+}
+
+.money-categories-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.money-cat-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.money-cat-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.money-cat-bar-wrap {
+  height: 8px;
+  background-color: var(--color-surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.money-cat-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #EF4444, #F59E0B);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.money-cat-amount {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* =====================
+   TIP TOGGLE (u formi za transakciju)
+   ===================== */
+.money-type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--color-surface-2);
+  border-radius: 12px;
+}
+
+.money-type-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.money-type-btn[data-type="expense"].active {
+  background-color: var(--color-surface);
+  color: var(--color-danger);
+  box-shadow: var(--shadow-sm);
+}
+
+.money-type-btn[data-type="income"].active {
+  background-color: var(--color-surface);
+  color: var(--color-success);
+  box-shadow: var(--shadow-sm);
+}
+
+.money-type-btn svg {
+  flex: 0 0 auto;
+}
+
+/* =====================
+   IZVEŠTAJ VIEW
+   ===================== */
+.report-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-stat {
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.report-stat-label {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.report-stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.report-stat-value.income { color: var(--color-success); }
+.report-stat-value.expense { color: var(--color-danger); }
+.report-stat-value.positive { color: var(--color-brand); }
+.report-stat-value.negative { color: var(--color-warning); }
+
+/* Grafikon */
+.report-chart {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 0.25rem;
+  align-items: end;
+  height: 160px;
+  padding: 0.5rem 0.25rem 0;
+  background-color: var(--color-surface);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+  margin-bottom: 0.75rem;
+}
+
+.report-chart-month {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 0.25rem;
+}
+
+.report-chart-bars {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+
+.report-bar {
+  width: 5px;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+}
+
+.report-bar.income { background-color: #22C55E; }
+.report-bar.expense { background-color: #EF4444; }
+
+.report-chart-label {
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.report-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1.25rem;
+}
+
+.report-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-dot.income { background-color: #22C55E; }
+.legend-dot.expense { background-color: #EF4444; }
+
+/* =====================
+   MALE PRILAGODBE
+   ===================== */
+@media (max-width: 360px) {
+  .money-stat-value {
+    font-size: 0.88rem;
+  }
+  .money-stat-label {
+    font-size: 0.6rem;
+  }
+  .money-stat-currency {
+    font-size: 0.58rem;
+  }
+  .money-tab {
+    font-size: 0.76rem;
+    padding: 0.5rem 0.25rem;
+  }
+  .money-cat-row {
+    grid-template-columns: 90px 1fr auto;
+    padding: 0.4rem 0.55rem;
+  }
+  .money-cat-name {
+    font-size: 0.76rem;
+  }
+  .money-cat-amount {
+    font-size: 0.76rem;
+  }
+  .report-chart {
+    height: 140px;
+  }
+  .report-bar {
+    width: 4px;
+  }
+  .budget-circle {
+    width: 150px;
+    height: 150px;
+  }
+  .budget-circle-percent {
+    font-size: 1.6rem;
+  }
+}
