@@ -1,19 +1,22 @@
 /* =========================================================
    ALATIKA PRO — bills.js
-   Modul Računi (osnova):
-   - Dva taba: Računi / Čekovi (Čekovi dolaze u Sesiji 4c)
-   - Lista, filteri, pretraga
-   - Mesec/godina prebacivanje
-   - Dodavanje / izmena / brisanje
+   Modul Računi — kompletno:
+   - Tab RAČUNI: arhiva sa slikama/PDF-om u IndexedDB
+   - Tab RATE: krediti, rate, progres
+   - Tab ČEKOVI: pametna realizacija sa radnim danima
    - Valute (30 komada, RSD default)
-   - Status: plaćeno / na čekanju / isteklo
+   - Detalji, izmena, brisanje
    ========================================================= */
 
 (function (global) {
   'use strict';
 
   const STORE = 'bills';
+  const STORE_CHECKS = 'checks';
+  const STORE_RATES = 'rates';
+  const STORE_FILES = 'files';
   const LS_CUSTOM_CATS = 'bills.customCats';
+  const BUSINESS_DAYS = 5;   /* Broj radnih dana za realizaciju čeka */
 
   const DEFAULT_CATEGORIES = [
     { id: 'electricity', name_sr: 'Struja',                 name_en: 'Electricity' },
@@ -35,11 +38,19 @@
 
   const state = {
     items: [],
+    checks: [],
+    rates: [],
     filter: 'all',        /* all | paid | pending | overdue */
+    checkFilter: 'all',
+    rateFilter: 'active',
     search: '',
     month: null,          /* "YYYY-MM" */
-    view: 'bills',        /* bills | checks */
-    editingId: null
+    view: 'bills',        /* bills | checks | rates */
+    editingId: null,
+    editingCheckId: null,
+    editingRateId: null,
+    detailId: null,
+    detailKind: 'bill'
   };
 
   /* ---------- POMOĆNE ---------- */
@@ -97,17 +108,22 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
 
-  function formatAmount(value, currencyCode) {
+  function formatAmount(value) {
     const n = typeof value === 'number' ? value : parseFloat(value) || 0;
     const locale = lang() === 'en' ? 'en-GB' : 'sr-RS';
-    const formatted = n.toLocaleString(locale, {
+    return n.toLocaleString(locale, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
-    return formatted;
   }
 
-  /* ---------- STATUS ---------- */
+  function formatInt(value) {
+    const n = typeof value === 'number' ? value : parseFloat(value) || 0;
+    const locale = lang() === 'en' ? 'en-GB' : 'sr-RS';
+    return n.toLocaleString(locale, { maximumFractionDigits: 0 });
+  }
+
+  /* ---------- STATUS RAČUNA ---------- */
 
   function getStatus(bill) {
     if (bill.paid) return 'paid';
@@ -115,18 +131,131 @@
     return 'pending';
   }
 
-  /* ---------- UČITAVANJE ---------- */
+  /* ---------- SLIKE / FAJLOVI ---------- */
 
-  function loadAll() {
-    return global.storage.loadAll(STORE).then(function (list) {
-      state.items = (list || []).sort(function (a, b) {
-        return (b.dueDate || '').localeCompare(a.dueDate || '');
-      });
-      return state.items;
+  /**
+   * Optimizuje sliku — smanjuje na max 1600px i pretvara u JPEG 85%.
+   * Vraća Promise<Blob>.
+   */
+  function optimizeImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+        resolve(file);
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+
+        const MAX = 1600;
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+
+        if (w > MAX || h > MAX) {
+          if (w >= h) {
+            h = Math.round(h * (MAX / w));
+            w = MAX;
+          } else {
+            w = Math.round(w * (MAX / h));
+            h = MAX;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(blob);
+          else resolve(file);
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('Greška pri učitavanju slike.'));
+      };
+      img.src = url;
     });
   }
 
-  /* ---------- FILTRIRANJE ---------- */
+  /**
+   * Čuva fajl (sliku ili PDF) u IndexedDB.
+   * Vraća Promise<id>.
+   */
+  function saveFile(file) {
+    const id = global.utils.uid('file');
+    const now = new Date().toISOString();
+
+    return optimizeImage(file).then(function (optimized) {
+      const record = {
+        id: id,
+        name: file.name || 'attachment',
+        type: optimized.type || file.type || 'application/octet-stream',
+        size: optimized.size || file.size || 0,
+        blob: optimized,
+        createdAt: now
+      };
+      return global.storage.save(STORE_FILES, record).then(function () {
+        return id;
+      });
+    });
+  }
+
+  /**
+   * Učitava fajl iz IndexedDB.
+   */
+  function loadFile(fileId) {
+    return global.storage.load(STORE_FILES, fileId);
+  }
+
+  /**
+   * Briše fajl iz IndexedDB.
+   */
+  function deleteFile(fileId) {
+    if (!fileId) return Promise.resolve();
+    return global.storage.delete(STORE_FILES, fileId);
+  }
+
+  /**
+   * Vraća URL objekta (Blob URL) za prikaz slike.
+   * VAŽNO: pozvati URL.revokeObjectURL nakon korišćenja.
+   */
+  function getFileURL(fileId) {
+    return loadFile(fileId).then(function (rec) {
+      if (!rec || !rec.blob) return null;
+      return {
+        url: URL.createObjectURL(rec.blob),
+        type: rec.type,
+        name: rec.name
+      };
+    });
+  }
+
+  /* ---------- UČITAVANJE ---------- */
+
+  function loadAll() {
+    return Promise.all([
+      global.storage.loadAll(STORE),
+      global.storage.loadAll(STORE_CHECKS),
+      global.storage.loadAll(STORE_RATES)
+    ]).then(function (results) {
+      state.items = (results[0] || []).sort(function (a, b) {
+        return (b.dueDate || '').localeCompare(a.dueDate || '');
+      });
+      state.checks = (results[1] || []).sort(function (a, b) {
+        return (b.checkDate || '').localeCompare(a.checkDate || '');
+      });
+      state.rates = (results[2] || []).sort(function (a, b) {
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      return state;
+    });
+  }
+
+  /* ---------- FILTRIRANJE RAČUNA ---------- */
 
   function applyFilter(list) {
     let out = list.slice();
@@ -158,7 +287,7 @@
     return out;
   }
 
-  /* ---------- SAŽETAK ---------- */
+  /* ---------- SAŽETAK RAČUNA ---------- */
 
   function computeSummary(list) {
     const monthItems = state.month
@@ -168,70 +297,162 @@
     const total = monthItems.length;
     const paid = monthItems.filter(function (b) { return b.paid; }).length;
     const pending = total - paid;
-    const overdue = monthItems.filter(function (b) { return !b.paid && getStatus(b) === 'overdue'; }).length;
 
-    /* Ukupno po valuti — za plaćene */
     const paidByCurrency = {};
     monthItems.forEach(function (b) {
       if (!b.paid) return;
       const cur = b.currency || 'RSD';
-      const amount = Number(b.amount) || 0;
-      paidByCurrency[cur] = (paidByCurrency[cur] || 0) + amount;
+      paidByCurrency[cur] = (paidByCurrency[cur] || 0) + (Number(b.amount) || 0);
     });
 
-    /* Ukupno po valuti — za neplaćene */
     const pendingByCurrency = {};
     monthItems.forEach(function (b) {
       if (b.paid) return;
       const cur = b.currency || 'RSD';
-      const amount = Number(b.amount) || 0;
-      pendingByCurrency[cur] = (pendingByCurrency[cur] || 0) + amount;
+      pendingByCurrency[cur] = (pendingByCurrency[cur] || 0) + (Number(b.amount) || 0);
     });
 
     return {
       total: total,
       paid: paid,
       pending: pending,
-      overdue: overdue,
       paidByCurrency: paidByCurrency,
       pendingByCurrency: pendingByCurrency
     };
   }
 
-  /* ---------- RENDER ---------- */
+  /* ---------- STATUS ČEKA ---------- */
+
+  function getCheckStatus(check) {
+    if (check.realized) return 'realized';
+    if (check.realizeDate && check.realizeDate < global.utils.todayISO()) return 'pending-realize';
+    return 'pending';
+  }
+
+  /* ---------- SAŽETAK ČEKOVA (za mesec) ---------- */
+
+  function computeCheckSummary(list) {
+    const monthItems = state.month
+      ? list.filter(function (c) {
+          return (c.checkDate || '').slice(0, 7) === state.month;
+        })
+      : list;
+
+    const total = monthItems.length;
+    const realized = monthItems.filter(function (c) { return c.realized; }).length;
+    const pending = total - realized;
+
+    let totalAmount = 0;
+    let realizedAmount = 0;
+    let pendingAmount = 0;
+    monthItems.forEach(function (c) {
+      const amt = Number(c.amount) || 0;
+      totalAmount += amt;
+      if (c.realized) realizedAmount += amt;
+      else pendingAmount += amt;
+    });
+
+    return {
+      total: total,
+      realized: realized,
+      pending: pending,
+      totalAmount: totalAmount,
+      realizedAmount: realizedAmount,
+      pendingAmount: pendingAmount
+    };
+  }
+
+  /* ---------- AUTO REALIZACIJA ČEKOVA ---------- */
+
+  /**
+   * Prolazi kroz sve čekove i ako je `autoRealize` uključen
+   * i `realizeDate` je prošao — automatski označava kao realizovan.
+   * Vraća broj promenjenih.
+   */
+  function autoRealizeChecks() {
+    const today = global.utils.todayISO();
+    let changed = 0;
+    const promises = [];
+
+    state.checks.forEach(function (c) {
+      if (c.realized) return;
+      if (!c.autoRealize) return;
+      if (!c.realizeDate) return;
+      if (c.realizeDate <= today) {
+        c.realized = true;
+        c.realizedAt = new Date().toISOString();
+        c.realizedAuto = true;
+        changed += 1;
+        promises.push(global.storage.save(STORE_CHECKS, c));
+      }
+    });
+
+    if (!promises.length) return Promise.resolve(0);
+    return Promise.all(promises).then(function () { return changed; });
+  }
+
+  /* ---------- PROGRES RATE ---------- */
+
+  function getRateProgress(rate) {
+    const total = Number(rate.totalInstallments) || 0;
+    const paid = Number(rate.paidInstallments) || 0;
+    if (total <= 0) return { paid: paid, total: 0, percent: 0 };
+    const percent = Math.min(100, Math.round((paid / total) * 100));
+    return { paid: paid, total: total, percent: percent };
+  }
+
+  function getRateRemainingAmount(rate) {
+    const total = Number(rate.totalInstallments) || 0;
+    const paid = Number(rate.paidInstallments) || 0;
+    const amount = Number(rate.amount) || 0;
+    const remaining = Math.max(0, total - paid);
+    return remaining * amount;
+  }
+
+  function getRateStatus(rate) {
+    const total = Number(rate.totalInstallments) || 0;
+    const paid = Number(rate.paidInstallments) || 0;
+    if (total > 0 && paid >= total) return 'finished';
+    if (rate.active === false) return 'finished';
+    return 'active';
+  }
+
+  /**
+   * Vraća ISO datum za tekuću ratu u datom mesecu.
+   * Ako je dan u mesecu već prošao, prikazuje se za tekući mesec (kao "plaćeno" ili ne).
+   */
+  function getRateDateForMonth(rate, monthISO) {
+    if (!rate.dayOfMonth || !monthISO) return '';
+    const day = Math.min(28, Math.max(1, Number(rate.dayOfMonth) || 1));
+    return monthISO + '-' + String(day).padStart(2, '0');
+  }  /* ---------- RENDER GLAVNI ---------- */
 
   function renderInto(view) {
     /* Sačuvaj postojeće delove gde je moguće */
     let header = view.querySelector('.module-header');
     let tabs = view.querySelector('.bills-tabs');
-    let monthNav = view.querySelector('.month-nav');
-    let summary = view.querySelector('.bills-summary');
-    let filters = view.querySelector('.bills-filters');
-    let searchWrap = view.querySelector('.bills-search');
-    let listWrap = view.querySelector('.bills-list');
 
-    if (!header || !tabs || !monthNav || !summary || !filters || !searchWrap || !listWrap) {
+    if (!header || !tabs) {
       view.innerHTML = '';
       if (header) view.appendChild(header);
       buildTabs(view);
-      buildMonthNav(view);
-      buildSummary(view);
-      buildFilters(view);
-      buildSearch(view);
-      listWrap = document.createElement('div');
-      listWrap.className = 'bills-list';
-      view.appendChild(listWrap);
+    }
+
+    /* Očisti sve ispod tabova */
+    const existingTabs = view.querySelector('.bills-tabs');
+    if (existingTabs) {
+      /* Ukloni sve posle tabova */
+      while (existingTabs.nextSibling) {
+        view.removeChild(existingTabs.nextSibling);
+      }
     }
 
     if (state.view === 'bills') {
-      renderBillsList(listWrap);
-      buildFAB(view);
+      renderBillsTab(view);
+    } else if (state.view === 'rates') {
+      renderRatesTab(view);
     } else {
-      /* Čekovi — dolaze u Sesiji 4c */
-      listWrap.innerHTML = '<div class="bills-empty">' +
-        t('checks.soon', 'Modul Čekovi dolazi uskoro.') +
-        '</div>';
-      removeFAB();
+      renderChecksTab(view);
     }
 
     toggleFabVisibility();
@@ -242,6 +463,7 @@
     tabs.className = 'bills-tabs';
     const defs = [
       { id: 'bills',  label: t('bills.tab.bills', 'Računi') },
+      { id: 'rates',  label: t('bills.tab.rates', 'Rate') },
       { id: 'checks', label: t('bills.tab.checks', 'Čekovi') }
     ];
     defs.forEach(function (d) {
@@ -249,30 +471,38 @@
       btn.type = 'button';
       btn.className = 'bills-tab' + (state.view === d.id ? ' active' : '');
       btn.textContent = d.label;
+      btn.setAttribute('data-tab', d.id);
       btn.addEventListener('click', function () {
         state.view = d.id;
         tabs.querySelectorAll('.bills-tab').forEach(function (b) {
           b.classList.toggle('active', b === btn);
         });
-        const listWrap = view.querySelector('.bills-list');
-        if (listWrap) {
-          if (state.view === 'bills') {
-            renderBillsList(listWrap);
-            buildFAB(view);
-          } else {
-            listWrap.innerHTML = '<div class="bills-empty">' +
-              t('checks.soon', 'Modul Čekovi dolazi uskoro.') +
-              '</div>';
-            removeFAB();
-          }
-        }
+        renderInto(view);
       });
       tabs.appendChild(btn);
     });
     view.appendChild(tabs);
   }
 
-  function buildMonthNav(view) {
+  /* =========================================================
+     TAB 1 — RAČUNI
+     ========================================================= */
+
+  function renderBillsTab(view) {
+    buildMonthNav(view, 'bills');
+    buildSummary(view);
+    buildFilters(view);
+    buildSearch(view);
+
+    const listWrap = document.createElement('div');
+    listWrap.className = 'bills-list';
+    view.appendChild(listWrap);
+    renderBillsList(listWrap);
+
+    buildFAB(view, 'bills');
+  }
+
+  function buildMonthNav(view, kind) {
     const nav = document.createElement('div');
     nav.className = 'month-nav';
     nav.innerHTML = [
@@ -289,7 +519,7 @@
       btn.addEventListener('click', function () {
         const dir = Number(btn.getAttribute('data-dir'));
         state.month = nextMonth(state.month, dir);
-        refreshAll(view);
+        loadAll().then(function () { refreshAll(view); });
       });
     });
 
@@ -319,34 +549,30 @@
 
     view.appendChild(box);
 
-    /* Sažetak po valuti (ispod brojeva) */
+    /* Sažetak po valuti */
     const totalsBox = document.createElement('div');
     totalsBox.className = 'bills-totals';
 
     const paidKeys = Object.keys(s.paidByCurrency);
     const pendingKeys = Object.keys(s.pendingByCurrency);
 
-    if (paidKeys.length > 0) {
-      paidKeys.forEach(function (cur) {
-        const chip = document.createElement('span');
-        chip.className = 'bills-total-chip';
-        chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
-          formatAmount(s.paidByCurrency[cur], cur) + ' ' + cur;
-        chip.style.color = 'var(--color-success)';
-        totalsBox.appendChild(chip);
-      });
-    }
+    paidKeys.forEach(function (cur) {
+      const chip = document.createElement('span');
+      chip.className = 'bills-total-chip';
+      chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
+        formatAmount(s.paidByCurrency[cur]) + ' ' + cur;
+      chip.style.color = 'var(--color-success)';
+      totalsBox.appendChild(chip);
+    });
 
-    if (pendingKeys.length > 0) {
-      pendingKeys.forEach(function (cur) {
-        const chip = document.createElement('span');
-        chip.className = 'bills-total-chip';
-        chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
-          formatAmount(s.pendingByCurrency[cur], cur) + ' ' + cur;
-        chip.style.color = 'var(--color-warning)';
-        totalsBox.appendChild(chip);
-      });
-    }
+    pendingKeys.forEach(function (cur) {
+      const chip = document.createElement('span');
+      chip.className = 'bills-total-chip';
+      chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
+        formatAmount(s.pendingByCurrency[cur]) + ' ' + cur;
+      chip.style.color = 'var(--color-warning)';
+      totalsBox.appendChild(chip);
+    });
 
     if (totalsBox.children.length > 0) {
       view.appendChild(totalsBox);
@@ -393,7 +619,7 @@
     const debounced = global.utils.debounce(function () {
       state.search = inp.value.trim();
       const listWrap = view.querySelector('.bills-list');
-      if (listWrap && state.view === 'bills') renderBillsList(listWrap);
+      if (listWrap) renderBillsList(listWrap);
     }, 180);
     inp.addEventListener('input', debounced);
   }
@@ -424,17 +650,33 @@
 
   function buildBillItem(b, listWrap) {
     const status = getStatus(b);
-    const today = global.utils.todayISO();
     const days = b.dueDate ? global.utils.daysFromToday(b.dueDate) : null;
 
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'bill-item' + (status === 'overdue' ? ' overdue' : '') + (b.paid ? ' paid' : '');
 
-    /* Thumb (slika dolazi u Sesiji 4b — sada placeholder) */
+    /* Thumb */
     const thumb = document.createElement('div');
     thumb.className = 'bill-thumb';
-    thumb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path></svg>';
+    if (b.attachmentId) {
+      /* Učitaj sliku iz IndexedDB */
+      getFileURL(b.attachmentId).then(function (info) {
+        if (!info) return;
+        if (info.type && info.type.indexOf('image/') === 0) {
+          const img = document.createElement('img');
+          img.src = info.url;
+          img.alt = '';
+          thumb.innerHTML = '';
+          thumb.appendChild(img);
+        } else {
+          /* PDF ili drugo */
+          thumb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+        }
+      });
+    } else {
+      thumb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path></svg>';
+    }
     item.appendChild(thumb);
 
     /* Body */
@@ -470,14 +712,12 @@
       meta.appendChild(cat);
     }
 
-    body.appendChild(meta);
-
-    /* Status badge */
     const statusEl = document.createElement('span');
     statusEl.className = 'bill-status ' + status;
     statusEl.textContent = t('bills.status.' + status, status);
     meta.appendChild(statusEl);
 
+    body.appendChild(meta);
     item.appendChild(body);
 
     /* Amount */
@@ -488,49 +728,502 @@
       ' <span class="currency-code">' + flag + ' ' + (b.currency || 'RSD') + '</span>';
     item.appendChild(amount);
 
-    /* Klik — otvori detalje (Sesija 4b) — zasad samo toast */
     item.addEventListener('click', function () {
-      if (global.home) {
-        global.home.showToast(t('bills.detailsSoon', 'Detalji računa dolaze u Sesiji 4b.'));
-      }
+      openBillDetail(b);
     });
 
     return item;
   }
 
-  /* ---------- FAB ---------- */
+  /* =========================================================
+     TAB 2 — RATE
+     ========================================================= */
 
-  function buildFAB(view) {
-    let fab = document.getElementById('billsFab');
-    if (!fab) {
-      fab = document.createElement('button');
-      fab.type = 'button';
-      fab.id = 'billsFab';
-      fab.className = 'fab-bills';
-      fab.setAttribute('aria-label', t('bills.add', 'Dodaj račun'));
-      fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
-      document.body.appendChild(fab);
+  function renderRatesTab(view) {
+    /* Sažetak rata */
+    const summary = document.createElement('div');
+    summary.className = 'bills-summary';
+
+    const activeRates = state.rates.filter(function (r) {
+      return getRateStatus(r) === 'active';
+    });
+
+    let totalMonthly = 0;
+    activeRates.forEach(function (r) {
+      totalMonthly += Number(r.amount) || 0;
+    });
+
+    summary.innerHTML = [
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value total">' + state.rates.length + '</div>',
+      '  <div class="bills-stat-label">' + t('rates.stat.total', 'Ukupno') + '</div>',
+      '</div>',
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value paid">' + activeRates.length + '</div>',
+      '  <div class="bills-stat-label">' + t('rates.stat.active', 'Aktivne') + '</div>',
+      '</div>',
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value pending">' + formatInt(totalMonthly) + '</div>',
+      '  <div class="bills-stat-label">' + t('rates.stat.monthly', 'Mesečno RSD') + '</div>',
+      '</div>'
+    ].join('');
+    view.appendChild(summary);
+
+    /* Filteri za rate */
+    const filters = document.createElement('div');
+    filters.className = 'bills-filters';
+    const defs = [
+      { id: 'all',      label: t('rates.filter.all', 'Sve') },
+      { id: 'active',   label: t('rates.filter.active', 'Aktivne') },
+      { id: 'finished', label: t('rates.filter.finished', 'Završene') }
+    ];
+    defs.forEach(function (d) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bills-filter' + (state.rateFilter === d.id ? ' active' : '');
+      btn.textContent = d.label;
+      btn.addEventListener('click', function () {
+        state.rateFilter = d.id;
+        filters.querySelectorAll('.bills-filter').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        const listWrap = view.querySelector('.bills-list');
+        if (listWrap) renderRatesList(listWrap);
+      });
+      filters.appendChild(btn);
+    });
+    view.appendChild(filters);
+
+    /* Pretraga */
+    const search = document.createElement('div');
+    search.className = 'bills-search';
+    search.innerHTML = [
+      '<svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.65" y2="16.65"></line></svg>',
+      '<input type="search" id="ratesSearchInput" placeholder="' + t('rates.search', 'Pretraga rata...') + '" value="' + global.utils.escapeHtml(state.search) + '" />'
+    ].join('');
+    view.appendChild(search);
+    const inp = search.querySelector('#ratesSearchInput');
+    inp.addEventListener('input', global.utils.debounce(function () {
+      state.search = inp.value.trim();
+      const listWrap = view.querySelector('.bills-list');
+      if (listWrap) renderRatesList(listWrap);
+    }, 180));
+
+    /* Lista */
+    const listWrap = document.createElement('div');
+    listWrap.className = 'bills-list';
+    view.appendChild(listWrap);
+    renderRatesList(listWrap);
+
+    buildFAB(view, 'rates');
+  }
+
+  function renderRatesList(listWrap) {
+    listWrap.innerHTML = '';
+
+    let filtered = state.rates.slice();
+
+    if (state.rateFilter === 'active') {
+      filtered = filtered.filter(function (r) { return getRateStatus(r) === 'active'; });
+    } else if (state.rateFilter === 'finished') {
+      filtered = filtered.filter(function (r) { return getRateStatus(r) === 'finished'; });
     }
-    fab.onclick = function () { openForm(null); };
+
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      filtered = filtered.filter(function (r) {
+        return (r.name || '').toLowerCase().indexOf(q) !== -1 ||
+               (r.bank || '').toLowerCase().indexOf(q) !== -1;
+      });
+    }
+
+    if (filtered.length === 0) {
+      listWrap.innerHTML = [
+        '<div class="bills-empty">',
+        '  <div class="bills-empty-icon" style="background-color: rgba(108, 92, 231, 0.10); color: #6C5CE7;">',
+        '    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="15" x2="16" y2="15"></line></svg>',
+        '  </div>',
+        '  <p>' + t('rates.empty', 'Još uvek nemaš unetih rata. Dodaj prvu!') + '</p>',
+        '</div>'
+      ].join('');
+      return;
+    }
+
+    filtered.forEach(function (r) {
+      listWrap.appendChild(buildRateItem(r));
+    });
   }
 
-  function removeFAB() {
-    const fab = document.getElementById('billsFab');
-    if (fab) fab.style.display = 'none';
+  function buildRateItem(r) {
+    const status = getRateStatus(r);
+    const progress = getRateProgress(r);
+    const remaining = getRateRemainingAmount(r);
+    const flag = global.currencies.getFlag(r.currency || 'RSD');
+
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'rate-item' + (status === 'finished' ? ' finished' : '');
+
+    /* Body */
+    const body = document.createElement('div');
+    body.className = 'rate-body';
+
+    const name = document.createElement('div');
+    name.className = 'rate-name';
+    name.textContent = r.name || t('rates.untitled', '(Bez naziva)');
+    body.appendChild(name);
+
+    if (r.bank) {
+      const bank = document.createElement('div');
+      bank.className = 'rate-bank';
+      bank.textContent = r.bank;
+      body.appendChild(bank);
+    }
+
+    /* Progress bar */
+    const progressWrap = document.createElement('div');
+    progressWrap.className = 'rate-progress';
+    progressWrap.innerHTML = [
+      '<div class="rate-progress-bar">',
+      '  <div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div>',
+      '</div>',
+      '<div class="rate-progress-label">',
+      '  <span>' + progress.paid + ' / ' + progress.total + ' ' + t('rates.installments', 'rata') + '</span>',
+      '  <span>' + progress.percent + '%</span>',
+      '</div>'
+    ].join('');
+    body.appendChild(progressWrap);
+
+    /* Meta */
+    const meta = document.createElement('div');
+    meta.className = 'rate-meta';
+
+    if (r.dayOfMonth) {
+      const day = document.createElement('span');
+      day.className = 'bill-meta-item';
+      day.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg> ' + t('rates.everyDay', 'Svakog') + ' ' + r.dayOfMonth + '.';
+      meta.appendChild(day);
+    }
+
+    if (status === 'finished') {
+      const done = document.createElement('span');
+      done.className = 'rate-status finished';
+      done.textContent = t('rates.status.finished', 'Završena');
+      meta.appendChild(done);
+    } else {
+      const active = document.createElement('span');
+      active.className = 'rate-status active';
+      active.textContent = t('rates.status.active', 'Aktivna');
+      meta.appendChild(active);
+    }
+
+    body.appendChild(meta);
+
+    if (remaining > 0) {
+      const rem = document.createElement('div');
+      rem.className = 'rate-remaining';
+      rem.innerHTML = '<span>' + t('rates.remaining', 'Ostalo') + ':</span> ' +
+        formatAmount(remaining) + ' <span class="currency-code">' + flag + ' ' + (r.currency || 'RSD') + '</span>';
+      body.appendChild(rem);
+    }
+
+    item.appendChild(body);
+
+    /* Amount */
+    const amount = document.createElement('div');
+    amount.className = 'bill-amount';
+    amount.innerHTML = formatAmount(r.amount || 0) +
+      ' <span class="currency-code">' + flag + ' ' + (r.currency || 'RSD') + '</span>';
+    item.appendChild(amount);
+
+    item.addEventListener('click', function () {
+      openRateDetail(r);
+    });
+
+    return item;
+  }  /* =========================================================
+     TAB 3 — ČEKOVI
+     ========================================================= */
+
+  function renderChecksTab(view) {
+    /* Sažetak čekova za izabrani mesec */
+    const summary = computeCheckSummary(state.checks);
+
+    const box = document.createElement('div');
+    box.className = 'bills-summary';
+    box.innerHTML = [
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value total">' + summary.total + '</div>',
+      '  <div class="bills-stat-label">' + t('checks.stat.total', 'Ukupno') + '</div>',
+      '</div>',
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value paid">' + summary.realized + '</div>',
+      '  <div class="bills-stat-label">' + t('checks.stat.realized', 'Realizovano') + '</div>',
+      '</div>',
+      '<div class="bills-stat">',
+      '  <div class="bills-stat-value pending">' + summary.pending + '</div>',
+      '  <div class="bills-stat-label">' + t('checks.stat.pending', 'Preostalo') + '</div>',
+      '</div>'
+    ].join('');
+    view.appendChild(box);
+
+    /* Mesec nav */
+    buildMonthNav(view, 'checks');
+
+    /* Pametna poruka */
+    if (summary.total > 0) {
+      const msg = document.createElement('div');
+      msg.className = 'checks-status-message';
+
+      if (summary.pending === 0) {
+        msg.classList.add('all-done');
+        msg.innerHTML = '✓ ' + t('checks.allDone', 'Svi čekovi za ovaj mesec su realizovani.');
+      } else {
+        msg.innerHTML = '<span class="check-count">' + summary.realized + ' / ' + summary.total + '</span> ' +
+          t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
+      }
+      view.appendChild(msg);
+    }
+
+    /* Filteri */
+    const filters = document.createElement('div');
+    filters.className = 'bills-filters';
+    const defs = [
+      { id: 'all',      label: t('checks.filter.all', 'Svi') },
+      { id: 'pending',  label: t('checks.filter.pending', 'Nerealizovani') },
+      { id: 'realized', label: t('checks.filter.realized', 'Realizovani') }
+    ];
+    defs.forEach(function (d) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bills-filter' + (state.checkFilter === d.id ? ' active' : '');
+      btn.textContent = d.label;
+      btn.addEventListener('click', function () {
+        state.checkFilter = d.id;
+        filters.querySelectorAll('.bills-filter').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        const listWrap = view.querySelector('.bills-list');
+        if (listWrap) renderChecksList(listWrap);
+      });
+      filters.appendChild(btn);
+    });
+    view.appendChild(filters);
+
+    /* Lista */
+    const listWrap = document.createElement('div');
+    listWrap.className = 'bills-list';
+    view.appendChild(listWrap);
+    renderChecksList(listWrap);
+
+    buildFAB(view, 'checks');
   }
 
-  function toggleFabVisibility() {
-    const fab = document.getElementById('billsFab');
-    if (!fab) return;
-    const route = global.router && global.router.current ? global.router.current() : 'home';
-    fab.style.display = (route === 'bills' && state.view === 'bills') ? '' : 'none';
+  function renderChecksList(listWrap) {
+    listWrap.innerHTML = '';
+
+    let filtered = state.checks.slice();
+
+    /* Filter po mesecu */
+    if (state.month) {
+      filtered = filtered.filter(function (c) {
+        return (c.checkDate || '').slice(0, 7) === state.month;
+      });
+    }
+
+    /* Filter po statusu */
+    if (state.checkFilter === 'pending') {
+      filtered = filtered.filter(function (c) { return !c.realized; });
+    } else if (state.checkFilter === 'realized') {
+      filtered = filtered.filter(function (c) { return c.realized === true; });
+    }
+
+    if (filtered.length === 0) {
+      listWrap.innerHTML = [
+        '<div class="bills-empty">',
+        '  <div class="bills-empty-icon" style="background-color: rgba(139, 92, 246, 0.10); color: #8B5CF6;">',
+        '    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="7" y1="14" x2="11" y2="14"></line></svg>',
+        '  </div>',
+        '  <p>' + t('checks.empty', 'Još uvek nemaš čekova za ovaj mesec.') + '</p>',
+        '</div>'
+      ].join('');
+      return;
+    }
+
+    /* Sortiraj po datumu realizacije */
+    filtered.sort(function (a, b) {
+      return (a.realizeDate || '').localeCompare(b.realizeDate || '');
+    });
+
+    filtered.forEach(function (c) {
+      listWrap.appendChild(buildCheckItem(c, listWrap));
+    });
   }
 
-  /* ---------- FORMA (modal) ---------- */
+  function buildCheckItem(c, listWrap) {
+    const status = getCheckStatus(c);
+    const days = c.realizeDate ? global.utils.daysFromToday(c.realizeDate) : null;
+
+    const item = document.createElement('div');
+    item.className = 'check-item' + (c.realized ? ' realized' : '');
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', '0');
+
+    /* Checkbox */
+    const check = document.createElement('button');
+    check.type = 'button';
+    check.className = 'rem-check' + (c.realized ? ' done' : '');
+    check.setAttribute('aria-label', c.realized
+      ? t('checks.markPending', 'Označi kao nerealizovano')
+      : t('checks.markRealized', 'Označi kao realizovano'));
+    check.innerHTML = c.realized
+      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+      : '';
+    check.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleCheckRealized(c, listWrap);
+    });
+    item.appendChild(check);
+
+    /* Body */
+    const body = document.createElement('div');
+    body.className = 'check-body';
+
+    const name = document.createElement('div');
+    name.className = 'check-name';
+    name.textContent = c.purpose || t('checks.untitled', '(Bez opisa)');
+    body.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'check-meta';
+
+    if (c.checkDate) {
+      const cd = document.createElement('span');
+      cd.className = 'bill-meta-item';
+      cd.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg> ' +
+        t('checks.given', 'Dat') + ' ' + global.utils.formatDate(c.checkDate, lang());
+      meta.appendChild(cd);
+    }
+
+    if (c.realizeDate) {
+      let cls = 'bill-meta-item';
+      let label = t('checks.realizeOn', 'Realizacija') + ' ' + global.utils.formatDate(c.realizeDate, lang());
+      if (!c.realized && days !== null) {
+        if (days < 0) { cls += ' overdue'; label += ' • ' + t('checks.overdue', 'prošlo'); }
+        else if (days === 0) { cls += ' soon'; label += ' • ' + t('checks.today', 'danas'); }
+        else if (days <= 5) { cls += ' soon'; label += ' • ' + t('checks.inDays', 'za') + ' ' + days + ' ' + t('checks.days', 'dana'); }
+      }
+      const rd = document.createElement('span');
+      rd.className = cls;
+      rd.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg> ' + global.utils.escapeHtml(label);
+      meta.appendChild(rd);
+    }
+
+    if (c.autoRealize && !c.realized) {
+      const auto = document.createElement('span');
+      auto.className = 'check-auto-badge';
+      auto.innerHTML = '⚡ ' + t('checks.auto', 'Auto');
+      auto.title = t('checks.autoHint', 'Automatski će biti označen kao realizovan na datum.');
+      meta.appendChild(auto);
+    }
+
+    if (c.realized) {
+      const badge = document.createElement('span');
+      badge.className = 'check-status realized';
+      badge.textContent = '✓ ' + t('checks.status.realized', 'Realizovan');
+      meta.appendChild(badge);
+    }
+
+    body.appendChild(meta);
+
+    if (c.note) {
+      const note = document.createElement('div');
+      note.className = 'check-note';
+      note.textContent = global.utils.truncate(c.note, 100);
+      body.appendChild(note);
+    }
+
+    item.appendChild(body);
+
+    /* Amount */
+    const amount = document.createElement('div');
+    amount.className = 'bill-amount';
+    amount.innerHTML = formatAmount(c.amount || 0) +
+      ' <span class="currency-code">дин. RSD</span>';
+    item.appendChild(amount);
+
+    /* Klik na item (osim checkbox-a) → detalji */
+    item.addEventListener('click', function (e) {
+      if (e.target === check || check.contains(e.target)) return;
+      openCheckDetail(c);
+    });
+
+    return item;
+  }
+
+  function toggleCheckRealized(c, listWrap) {
+    c.realized = !c.realized;
+    if (c.realized) {
+      c.realizedAt = new Date().toISOString();
+      c.realizedAuto = false;
+    } else {
+      c.realizedAt = null;
+      c.realizedAuto = false;
+    }
+
+    global.storage.save(STORE_CHECKS, c).then(function () {
+      const v = document.getElementById('view-bills');
+      if (v) {
+        const lw = v.querySelector('.bills-list');
+        if (lw) renderChecksList(lw);
+        /* Ponovo izračunaj summary i poruku */
+        refreshChecksSummary(v);
+      }
+      if (global.home) global.home.refresh();
+    });
+  }
+
+  function refreshChecksSummary(view) {
+    const summary = computeCheckSummary(state.checks);
+    const summaryBox = view.querySelector('.bills-summary');
+    if (summaryBox) {
+      summaryBox.innerHTML = [
+        '<div class="bills-stat">',
+        '  <div class="bills-stat-value total">' + summary.total + '</div>',
+        '  <div class="bills-stat-label">' + t('checks.stat.total', 'Ukupno') + '</div>',
+        '</div>',
+        '<div class="bills-stat">',
+        '  <div class="bills-stat-value paid">' + summary.realized + '</div>',
+        '  <div class="bills-stat-label">' + t('checks.stat.realized', 'Realizovano') + '</div>',
+        '</div>',
+        '<div class="bills-stat">',
+        '  <div class="bills-stat-value pending">' + summary.pending + '</div>',
+        '  <div class="bills-stat-label">' + t('checks.stat.pending', 'Preostalo') + '</div>',
+        '</div>'
+      ].join('');
+    }
+
+    const msgEl = view.querySelector('.checks-status-message');
+    if (msgEl) {
+      if (summary.pending === 0 && summary.total > 0) {
+        msgEl.classList.add('all-done');
+        msgEl.innerHTML = '✓ ' + t('checks.allDone', 'Svi čekovi za ovaj mesec su realizovani.');
+      } else {
+        msgEl.classList.remove('all-done');
+        msgEl.innerHTML = '<span class="check-count">' + summary.realized + ' / ' + summary.total + '</span> ' +
+          t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
+      }
+    }
+  }
+
+  /* =========================================================
+     FORMA — RAČUN (sa upload slike/PDF)
+     ========================================================= */
 
   let formOverlay = null;
+  let currentAttachment = { id: null, isNew: false, removed: false };
 
-  function openForm(existing) {
+  function openBillForm(existing) {
     if (formOverlay) return;
     state.editingId = existing ? existing.id : null;
 
@@ -547,7 +1240,15 @@
       paidDate: '',
       paid: false,
       description: '',
-      reference: ''
+      reference: '',
+      attachmentId: ''
+    };
+
+    /* Attachment */
+    currentAttachment = {
+      id: item.attachmentId || null,
+      isNew: false,
+      removed: false
     };
 
     formOverlay = document.createElement('div');
@@ -555,14 +1256,12 @@
     formOverlay.setAttribute('role', 'dialog');
     formOverlay.setAttribute('aria-modal', 'true');
 
-    /* Kategorije */
     const catOptions = getAllCategories().map(function (c) {
       const label = lang() === 'en' ? (c.name_en || c.name_sr) : (c.name_sr || c.name_en);
       const selected = item.category === c.id ? ' selected' : '';
       return '<option value="' + c.id + '"' + selected + '>' + global.utils.escapeHtml(label) + '</option>';
     }).join('');
 
-    /* Valute */
     const currencyOptions = global.currencies.getAll().map(function (c) {
       const label = c.flag + ' ' + c.code + ' — ' + (lang() === 'en' ? c.name_en : c.name_sr);
       const selected = (item.currency || 'RSD') === c.code ? ' selected' : '';
@@ -574,20 +1273,22 @@
       '  <h3 class="modal-title">' + (isEdit ? t('bills.edit', 'Izmeni račun') : t('bills.new', 'Novi račun')) + '</h3>',
       '  <form id="billForm" novalidate>',
 
+      /* Upload zona */
+      '    <div class="bill-form-section">',
+      '      <div id="uploadArea"></div>',
+      '    </div>',
+
       /* Sekcija 1: Osnovni podaci */
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.basic', 'Osnovni podaci') + '</div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.name', 'Naziv računa') + ' *</label>',
       '        <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('bills.field.namePlaceholder', 'npr. Struja za oktobar') + '" />',
       '      </div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.vendor', 'Dobavljač') + '</label>',
       '        <input class="input" type="text" name="vendor" value="' + global.utils.escapeHtml(item.vendor || '') + '" placeholder="' + t('bills.field.vendorPlaceholder', 'npr. EPS') + '" />',
       '      </div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.category', 'Kategorija') + '</label>',
       '        <select class="select" name="category">',
@@ -600,7 +1301,6 @@
       /* Sekcija 2: Iznos i valuta */
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.amount', 'Iznos i valuta') + '</div>',
-
       '      <div class="amount-row">',
       '        <div class="form-group">',
       '          <label class="label">' + t('bills.field.amount', 'Iznos') + ' *</label>',
@@ -618,7 +1318,6 @@
       /* Sekcija 3: Datumi */
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.dates', 'Period i datumi') + '</div>',
-
       '      <div class="form-row">',
       '        <div class="form-group">',
       '          <label class="label">' + t('bills.field.month', 'Mesec') + ' *</label>',
@@ -629,18 +1328,15 @@
       '          <input class="input" type="date" name="issueDate" value="' + global.utils.escapeHtml(item.issueDate || '') + '" />',
       '        </div>',
       '      </div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.dueDate', 'Rok plaćanja') + '</label>',
       '        <input class="input" type="date" name="dueDate" value="' + global.utils.escapeHtml(item.dueDate || '') + '" />',
       '      </div>',
-
       '      <div class="form-group">',
       '        <label class="label">',
       '          <input type="checkbox" name="paid" ' + (item.paid ? 'checked' : '') + ' style="margin-right:0.4rem;" />',
       '          ' + t('bills.field.paid', 'Plaćeno') + '</label>',
       '      </div>',
-
       '      <div class="form-group" id="paidDateGroup" style="' + (item.paid ? '' : 'display:none;') + '">',
       '        <label class="label">' + t('bills.field.paidDate', 'Datum plaćanja') + '</label>',
       '        <input class="input" type="date" name="paidDate" value="' + global.utils.escapeHtml(item.paidDate || '') + '" />',
@@ -650,12 +1346,10 @@
       /* Sekcija 4: Dodatno */
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.extra', 'Dodatno') + '</div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.reference', 'Referentni broj') + '</label>',
       '        <input class="input" type="text" name="reference" value="' + global.utils.escapeHtml(item.reference || '') + '" />',
       '      </div>',
-
       '      <div class="form-group">',
       '        <label class="label">' + t('bills.field.description', 'Opis') + '</label>',
       '        <textarea class="textarea" name="description">' + global.utils.escapeHtml(item.description || '') + '</textarea>',
@@ -673,7 +1367,10 @@
 
     document.body.appendChild(formOverlay);
 
-    /* Paid checkbox → prikaži/sakrij datum plaćanja */
+    /* Upload area */
+    renderUploadArea(formOverlay.querySelector('#uploadArea'));
+
+    /* Paid checkbox */
     const paidCheckbox = formOverlay.querySelector('input[name="paid"]');
     const paidDateGroup = formOverlay.querySelector('#paidDateGroup');
     paidCheckbox.addEventListener('change', function () {
@@ -690,12 +1387,104 @@
 
     formOverlay.querySelector('#billForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      submitForm(formOverlay);
+      submitBillForm(formOverlay);
     });
 
     requestAnimationFrame(function () {
       formOverlay.classList.add('show');
     });
+  }
+
+  function renderUploadArea(container) {
+    container.innerHTML = '';
+
+    /* Ako ima attachment */
+    if (currentAttachment.id && !currentAttachment.removed) {
+      getFileURL(currentAttachment.id).then(function (info) {
+        if (!info) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'upload-preview';
+
+        if (info.type && info.type.indexOf('image/') === 0) {
+          const img = document.createElement('img');
+          img.src = info.url;
+          img.alt = '';
+          wrap.appendChild(img);
+        } else {
+          wrap.innerHTML = '<div style="padding: 1rem; text-align: center;"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-module-bills);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg><p style="margin-top:0.5rem; font-size: 0.85rem;">' + global.utils.escapeHtml(info.name) + '</p></div>';
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'upload-preview-actions';
+
+        const changeBtn = document.createElement('button');
+        changeBtn.type = 'button';
+        changeBtn.className = 'btn btn-secondary';
+        changeBtn.textContent = t('bills.attachment.change', 'Promeni');
+        changeBtn.addEventListener('click', function () {
+          pickFile();
+        });
+        actions.appendChild(changeBtn);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-secondary';
+        removeBtn.style.color = 'var(--color-danger)';
+        removeBtn.textContent = t('bills.attachment.remove', 'Ukloni');
+        removeBtn.addEventListener('click', function () {
+          currentAttachment.removed = true;
+          currentAttachment.id = null;
+          renderUploadArea(container);
+        });
+        actions.appendChild(removeBtn);
+
+        container.appendChild(wrap);
+        container.appendChild(actions);
+      });
+      return;
+    }
+
+    /* Upload zona */
+    const zone = document.createElement('div');
+    zone.className = 'upload-zone';
+    zone.innerHTML = [
+      '<div class="upload-zone-icon">',
+      '  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
+      '</div>',
+      '<div class="upload-zone-title">' + t('bills.attachment.add', 'Dodaj iz galerije') + '</div>',
+      '<div class="upload-zone-hint">' + t('bills.attachment.hint', 'Izaberi fotografiju računa ili PDF dokument. Ostaje samo na tvom uređaju.') + '</div>'
+    ].join('');
+
+    zone.addEventListener('click', pickFile);
+    container.appendChild(zone);
+  }
+
+  function pickFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', function () {
+      const file = input.files && input.files[0];
+      if (!file) {
+        document.body.removeChild(input);
+        return;
+      }
+      /* Sačuvaj odmah kao privremeni attachment */
+      saveFile(file).then(function (id) {
+        currentAttachment.id = id;
+        currentAttachment.isNew = true;
+        currentAttachment.removed = false;
+        const area = formOverlay && formOverlay.querySelector('#uploadArea');
+        if (area) renderUploadArea(area);
+      }).catch(function (err) {
+        if (global.home) global.home.showToast(t('bills.err.file', 'Greška pri čuvanju fajla: ') + (err.message || ''));
+      }).then(function () {
+        document.body.removeChild(input);
+      });
+    });
+    input.click();
   }
 
   function closeForm() {
@@ -704,10 +1493,11 @@
     setTimeout(function () {
       if (formOverlay && formOverlay.parentNode) formOverlay.parentNode.removeChild(formOverlay);
       formOverlay = null;
+      currentAttachment = { id: null, isNew: false, removed: false };
     }, 200);
   }
 
-  function submitForm(overlay) {
+  function submitBillForm(overlay) {
     const form = overlay.querySelector('#billForm');
     const errEl = overlay.querySelector('#billFormError');
     errEl.textContent = '';
@@ -745,9 +1535,20 @@
       const existing = state.items.find(function (x) { return x.id === state.editingId; });
       if (!existing) return;
       record = Object.assign({}, existing, data);
+
+      /* Ako je stari attachment uklonjen — obriši fajl */
+      if (currentAttachment.removed && existing.attachmentId) {
+        deleteFile(existing.attachmentId);
+        record.attachmentId = '';
+      } else if (currentAttachment.id) {
+        record.attachmentId = currentAttachment.id;
+      } else {
+        record.attachmentId = existing.attachmentId || '';
+      }
     } else {
       record = Object.assign({
         id: global.utils.uid('bill'),
+        attachmentId: currentAttachment.id || '',
         createdAt: new Date().toISOString()
       }, data);
     }
@@ -764,13 +1565,599 @@
     });
   }
 
-  /* ---------- OSVEŽI SVE ---------- */
+  /* =========================================================
+     DETALJI RAČUNA
+     ========================================================= */
+
+  function openBillDetail(b) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+
+    const status = getStatus(b);
+    const statusLabel = t('bills.status.' + status, status);
+
+    const currency = b.currency || 'RSD';
+    const flag = global.currencies.getFlag(currency);
+
+    let attachmentHTML = '';
+    if (b.attachmentId) {
+      attachmentHTML = '<div id="detailAttachment" style="margin-top: 0.75rem;"></div>';
+    }
+
+    overlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + global.utils.escapeHtml(b.name || b.vendor || '') + '</h3>',
+      '  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">',
+      '    <span class="bill-status ' + status + '">' + statusLabel + '</span>',
+      b.category ? '    <span class="rem-category-chip">' + global.utils.escapeHtml(categoryName(b.category)) + '</span>' : '',
+      '  </div>',
+      '  <div class="detail-row">',
+      '    <span class="detail-label">' + t('bills.field.amount', 'Iznos') + '</span>',
+      '    <span class="detail-value">' + formatAmount(b.amount || 0) + ' ' + flag + ' ' + currency + '</span>',
+      '  </div>',
+      b.vendor ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.vendor', 'Dobavljač') + '</span><span class="detail-value">' + global.utils.escapeHtml(b.vendor) + '</span></div>' : '',
+      b.issueDate ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.issueDate', 'Izdato') + '</span><span class="detail-value">' + global.utils.formatDate(b.issueDate, lang()) + '</span></div>' : '',
+      b.dueDate ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.dueDate', 'Rok') + '</span><span class="detail-value">' + global.utils.formatDate(b.dueDate, lang()) + '</span></div>' : '',
+      b.paidDate ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.paidDate', 'Plaćeno') + '</span><span class="detail-value">' + global.utils.formatDate(b.paidDate, lang()) + '</span></div>' : '',
+      b.month ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.month', 'Mesec') + '</span><span class="detail-value">' + monthLabel(b.month) + '</span></div>' : '',
+      b.reference ? '  <div class="detail-row"><span class="detail-label">' + t('bills.field.reference', 'Referenca') + '</span><span class="detail-value">' + global.utils.escapeHtml(b.reference) + '</span></div>' : '',
+      b.description ? '  <div class="detail-row" style="flex-direction: column; align-items: flex-start;"><span class="detail-label">' + t('bills.field.description', 'Opis') + '</span><span class="detail-value" style="text-align: left;">' + global.utils.escapeHtml(b.description) + '</span></div>' : '',
+      attachmentHTML,
+      '  <div class="modal-actions">',
+      '    <button type="button" class="btn btn-secondary" id="detailClose">' + t('common.close', 'Zatvori') + '</button>',
+      '    <button type="button" class="btn btn-secondary" id="detailEdit" style="color: var(--color-brand);">' + t('common.edit', 'Izmeni') + '</button>',
+      '    <button type="button" class="btn btn-danger" id="detailDelete">' + t('common.delete', 'Obriši') + '</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(overlay);
+
+    /* Učitaj attachment */
+    if (b.attachmentId) {
+      getFileURL(b.attachmentId).then(function (info) {
+        if (!info) return;
+        const container = overlay.querySelector('#detailAttachment');
+        if (!container) return;
+
+        if (info.type && info.type.indexOf('image/') === 0) {
+          const img = document.createElement('img');
+          img.src = info.url;
+          img.style.width = '100%';
+          img.style.borderRadius = '12px';
+          img.style.display = 'block';
+          container.appendChild(img);
+        } else {
+          const link = document.createElement('a');
+          link.href = info.url;
+          link.download = info.name || 'attachment';
+          link.className = 'btn btn-secondary btn-block';
+          link.style.textDecoration = 'none';
+          link.innerHTML = '📄 ' + t('bills.download', 'Preuzmi') + ' ' + global.utils.escapeHtml(info.name || '');
+          link.target = '_blank';
+          container.appendChild(link);
+        }
+      });
+    }
+
+    overlay.querySelector('#detailClose').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+    });
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+    overlay.querySelector('#detailEdit').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+      openBillForm(b);
+    });
+    overlay.querySelector('#detailDelete').addEventListener('click', function () {
+      const ok = global.confirm(t('bills.deleteConfirm', 'Obrisati ovaj račun?'));
+      if (!ok) return;
+      if (b.attachmentId) deleteFile(b.attachmentId);
+      global.storage.delete(STORE, b.id).then(function () {
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
+          if (global.home) global.home.refresh();
+        });
+      });
+    });
+
+    requestAnimationFrame(function () {
+      overlay.classList.add('show');
+    });
+  }
+
+  /* =========================================================
+     FORMA — RATA
+     ========================================================= */
+
+  function openRateForm(existing) {
+    if (formOverlay) return;
+    state.editingRateId = existing ? existing.id : null;
+
+    const isEdit = !!existing;
+    const item = existing ? Object.assign({}, existing) : {
+      name: '',
+      bank: '',
+      amount: '',
+      currency: 'RSD',
+      dayOfMonth: 15,
+      startDate: global.utils.todayISO(),
+      totalInstallments: 12,
+      paidInstallments: 0,
+      active: true,
+      notes: ''
+    };
+
+    formOverlay = document.createElement('div');
+    formOverlay.className = 'modal-overlay';
+    formOverlay.setAttribute('role', 'dialog');
+
+    const currencyOptions = global.currencies.getAll().map(function (c) {
+      const label = c.flag + ' ' + c.code + ' — ' + (lang() === 'en' ? c.name_en : c.name_sr);
+      const selected = (item.currency || 'RSD') === c.code ? ' selected' : '';
+      return '<option value="' + c.code + '"' + selected + '>' + global.utils.escapeHtml(label) + '</option>';
+    }).join('');
+
+    formOverlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + (isEdit ? t('rates.edit', 'Izmeni ratu') : t('rates.new', 'Nova rata')) + '</h3>',
+      '  <form id="rateForm" novalidate>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rates.field.name', 'Naziv') + ' *</label>',
+      '      <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('rates.field.namePlaceholder', 'npr. Kredit za auto') + '" />',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rates.field.bank', 'Banka / primalac') + '</label>',
+      '      <input class="input" type="text" name="bank" value="' + global.utils.escapeHtml(item.bank || '') + '" placeholder="' + t('rates.field.bankPlaceholder', 'npr. Banca Intesa') + '" />',
+      '    </div>',
+      '    <div class="amount-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rates.field.amount', 'Mesečni iznos') + ' *</label>',
+      '        <input class="input" type="text" inputmode="decimal" name="amount" required value="' + global.utils.escapeHtml(String(item.amount || '')) + '" placeholder="0,00" />',
+      '      </div>',
+      '      <div class="form-group currency-select">',
+      '        <label class="label">' + t('rates.field.currency', 'Valuta') + '</label>',
+      '        <select class="select" name="currency">' + currencyOptions + '</select>',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rates.field.dayOfMonth', 'Dan u mesecu') + '</label>',
+      '        <input class="input" type="number" min="1" max="28" name="dayOfMonth" value="' + (item.dayOfMonth || 15) + '" />',
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rates.field.startDate', 'Datum početka') + '</label>',
+      '        <input class="input" type="date" name="startDate" value="' + global.utils.escapeHtml(item.startDate || '') + '" />',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rates.field.totalInstallments', 'Ukupno rata') + ' *</label>',
+      '        <input class="input" type="number" min="1" name="totalInstallments" required value="' + (item.totalInstallments || 12) + '" />',
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rates.field.paidInstallments', 'Plaćeno rata') + '</label>',
+      '        <input class="input" type="number" min="0" name="paidInstallments" value="' + (item.paidInstallments || 0) + '" />',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rates.field.notes', 'Napomena') + '</label>',
+      '      <textarea class="textarea" name="notes">' + global.utils.escapeHtml(item.notes || '') + '</textarea>',
+      '    </div>',
+      '    <div class="form-error" id="rateFormError"></div>',
+      '    <div class="modal-actions">',
+      '      <button type="button" class="btn btn-secondary" id="rateCancel">' + t('common.cancel', 'Otkaži') + '</button>',
+      '      <button type="submit" class="btn btn-primary">' + t('common.save', 'Sačuvaj') + '</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(formOverlay);
+    formOverlay.querySelector('#rateCancel').addEventListener('click', closeForm);
+    formOverlay.addEventListener('click', function (e) {
+      if (e.target === formOverlay) closeForm();
+    });
+    formOverlay.querySelector('#rateForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitRateForm(formOverlay);
+    });
+    requestAnimationFrame(function () {
+      formOverlay.classList.add('show');
+    });
+  }
+
+  function submitRateForm(overlay) {
+    const form = overlay.querySelector('#rateForm');
+    const errEl = overlay.querySelector('#rateFormError');
+    errEl.textContent = '';
+
+    const data = {
+      name: form.name.value.trim(),
+      bank: form.bank.value.trim(),
+      amount: global.utils.parseAmount(form.amount.value),
+      currency: form.currency.value || 'RSD',
+      dayOfMonth: Number(form.dayOfMonth.value) || 15,
+      startDate: form.startDate.value,
+      totalInstallments: Number(form.totalInstallments.value) || 0,
+      paidInstallments: Number(form.paidInstallments.value) || 0,
+      notes: form.notes.value.trim(),
+      active: true
+    };
+
+    if (!data.name) {
+      errEl.textContent = t('rates.err.name', 'Naziv je obavezan.');
+      return;
+    }
+    if (!data.amount || data.amount <= 0) {
+      errEl.textContent = t('rates.err.amount', 'Iznos mora biti veći od 0.');
+      return;
+    }
+    if (!data.totalInstallments || data.totalInstallments <= 0) {
+      errEl.textContent = t('rates.err.total', 'Ukupan broj rata je obavezan.');
+      return;
+    }
+    if (data.paidInstallments > data.totalInstallments) {
+      data.paidInstallments = data.totalInstallments;
+    }
+
+    let record;
+    if (state.editingRateId) {
+      const existing = state.rates.find(function (x) { return x.id === state.editingRateId; });
+      if (!existing) return;
+      record = Object.assign({}, existing, data);
+      if (record.paidInstallments >= record.totalInstallments) {
+        record.active = false;
+      }
+    } else {
+      record = Object.assign({
+        id: global.utils.uid('rate'),
+        createdAt: new Date().toISOString()
+      }, data);
+    }
+
+    global.storage.save(STORE_RATES, record).then(function () {
+      closeForm();
+      loadAll().then(function () {
+        const view = document.getElementById('view-bills');
+        if (view) refreshAll(view);
+        if (global.home) global.home.refresh();
+      });
+    }).catch(function (err) {
+      errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
+    });
+  }
+
+  function openRateDetail(r) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    const progress = getRateProgress(r);
+    const remaining = getRateRemainingAmount(r);
+    const currency = r.currency || 'RSD';
+    const flag = global.currencies.getFlag(currency);
+
+    overlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + global.utils.escapeHtml(r.name || '') + '</h3>',
+      r.bank ? '  <p class="text-muted text-sm" style="margin-bottom: 0.75rem;">' + global.utils.escapeHtml(r.bank) + '</p>' : '',
+      '  <div class="rate-progress" style="margin-bottom: 1rem;">',
+      '    <div class="rate-progress-bar">',
+      '      <div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div>',
+      '    </div>',
+      '    <div class="rate-progress-label">',
+      '      <span>' + progress.paid + ' / ' + progress.total + ' ' + t('rates.installments', 'rata') + '</span>',
+      '      <span>' + progress.percent + '%</span>',
+      '    </div>',
+      '  </div>',
+      '  <div class="detail-row"><span class="detail-label">' + t('rates.field.amount', 'Mesečno') + '</span><span class="detail-value">' + formatAmount(r.amount) + ' ' + flag + ' ' + currency + '</span></div>',
+      '  <div class="detail-row"><span class="detail-label">' + t('rates.remaining', 'Ostalo') + '</span><span class="detail-value">' + formatAmount(remaining) + ' ' + flag + ' ' + currency + '</span></div>',
+      r.dayOfMonth ? '  <div class="detail-row"><span class="detail-label">' + t('rates.field.dayOfMonth', 'Dan') + '</span><span class="detail-value">' + r.dayOfMonth + '. u mesecu</span></div>' : '',
+      r.startDate ? '  <div class="detail-row"><span class="detail-label">' + t('rates.field.startDate', 'Početak') + '</span><span class="detail-value">' + global.utils.formatDate(r.startDate, lang()) + '</span></div>' : '',
+      r.notes ? '  <div class="detail-row" style="flex-direction: column; align-items: flex-start;"><span class="detail-label">' + t('rates.field.notes', 'Napomena') + '</span><span class="detail-value" style="text-align: left;">' + global.utils.escapeHtml(r.notes) + '</span></div>' : '',
+      '  <div class="modal-actions">',
+      '    <button type="button" class="btn btn-secondary" id="rateDetailClose">' + t('common.close', 'Zatvori') + '</button>',
+      '    <button type="button" class="btn btn-secondary" id="rateDetailPay" style="color: var(--color-success);">+1 ' + t('rates.payOne', 'Rata') + '</button>',
+      '    <button type="button" class="btn btn-secondary" id="rateDetailEdit" style="color: var(--color-brand);">' + t('common.edit', 'Izmeni') + '</button>',
+      '    <button type="button" class="btn btn-danger" id="rateDetailDelete">' + t('common.delete', 'Obriši') + '</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#rateDetailClose').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+    });
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+    overlay.querySelector('#rateDetailEdit').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+      openRateForm(r);
+    });
+    overlay.querySelector('#rateDetailPay').addEventListener('click', function () {
+      r.paidInstallments = (Number(r.paidInstallments) || 0) + 1;
+      if (r.paidInstallments >= Number(r.totalInstallments)) {
+        r.active = false;
+      }
+      global.storage.save(STORE_RATES, r).then(function () {
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
+        });
+      });
+    });
+    overlay.querySelector('#rateDetailDelete').addEventListener('click', function () {
+      const ok = global.confirm(t('rates.deleteConfirm', 'Obrisati ovu ratu?'));
+      if (!ok) return;
+      global.storage.delete(STORE_RATES, r.id).then(function () {
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
+        });
+      });
+    });
+
+    requestAnimationFrame(function () {
+      overlay.classList.add('show');
+    });
+  }
+
+  /* =========================================================
+     FORMA — ČEK
+     ========================================================= */
+
+  function openCheckForm(existing) {
+    if (formOverlay) return;
+    state.editingCheckId = existing ? existing.id : null;
+
+    const isEdit = !!existing;
+    const today = global.utils.todayISO();
+    const item = existing ? Object.assign({}, existing) : {
+      amount: '',
+      checkDate: today,
+      purpose: '',
+      realizeDate: global.currencies.addBusinessDaysISO(today, BUSINESS_DAYS),
+      autoRealize: true,
+      realized: false,
+      note: ''
+    };
+
+    formOverlay = document.createElement('div');
+    formOverlay.className = 'modal-overlay';
+    formOverlay.setAttribute('role', 'dialog');
+
+    formOverlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + (isEdit ? t('checks.edit', 'Izmeni ček') : t('checks.new', 'Novi ček')) + '</h3>',
+      '  <form id="checkForm" novalidate>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('checks.field.amount', 'Iznos (RSD)') + ' *</label>',
+      '      <input class="input" type="text" inputmode="decimal" name="amount" required value="' + global.utils.escapeHtml(String(item.amount || '')) + '" placeholder="0,00" />',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('checks.field.purpose', 'Za šta je iskorišćen') + ' *</label>',
+      '      <input class="input" type="text" name="purpose" required value="' + global.utils.escapeHtml(item.purpose || '') + '" placeholder="' + t('checks.field.purposePlaceholder', 'npr. Maxi, Pumpa, Apoteka') + '" />',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('checks.field.checkDate', 'Datum čeka') + ' *</label>',
+      '        <input class="input" type="date" name="checkDate" required value="' + global.utils.escapeHtml(item.checkDate || '') + '" />',
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('checks.field.realizeDate', 'Datum realizacije') + '</label>',
+      '        <input class="input" type="date" name="realizeDate" value="' + global.utils.escapeHtml(item.realizeDate || '') + '" />',
+      '      </div>',
+      '    </div>',
+      '    <p class="form-hint">' + t('checks.hintBusiness', 'Automatski se računa 5 radnih dana od datuma čeka.') + '</p>',
+      '    <div class="form-group">',
+      '      <label class="label">',
+      '        <input type="checkbox" name="autoRealize" ' + (item.autoRealize ? 'checked' : '') + ' style="margin-right:0.4rem;" />',
+      '        ' + t('checks.field.autoRealize', 'Automatski označi kao realizovano na taj datum') + '</label>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">',
+      '        <input type="checkbox" name="realized" ' + (item.realized ? 'checked' : '') + ' style="margin-right:0.4rem;" />',
+      '        ' + t('checks.field.realized', 'Već realizovan') + '</label>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('checks.field.note', 'Napomena') + '</label>',
+      '      <textarea class="textarea" name="note">' + global.utils.escapeHtml(item.note || '') + '</textarea>',
+      '    </div>',
+      '    <div class="form-error" id="checkFormError"></div>',
+      '    <div class="modal-actions">',
+      '      <button type="button" class="btn btn-secondary" id="checkCancel">' + t('common.cancel', 'Otkaži') + '</button>',
+      '      <button type="submit" class="btn btn-primary">' + t('common.save', 'Sačuvaj') + '</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(formOverlay);
+
+    /* Auto-kalkulacija realizacije pri promeni datuma čeka */
+    const checkDateInput = formOverlay.querySelector('input[name="checkDate"]');
+    const realizeDateInput = formOverlay.querySelector('input[name="realizeDate"]');
+    checkDateInput.addEventListener('change', function () {
+      if (!checkDateInput.value) return;
+      /* Ako korisnik nije ručno menjao realizeDate — predloži */
+      if (!isEdit) {
+        realizeDateInput.value = global.currencies.addBusinessDaysISO(checkDateInput.value, BUSINESS_DAYS);
+      }
+    });
+
+    formOverlay.querySelector('#checkCancel').addEventListener('click', closeForm);
+    formOverlay.addEventListener('click', function (e) {
+      if (e.target === formOverlay) closeForm();
+    });
+    formOverlay.querySelector('#checkForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitCheckForm(formOverlay);
+    });
+
+    requestAnimationFrame(function () {
+      formOverlay.classList.add('show');
+    });
+  }
+
+  function submitCheckForm(overlay) {
+    const form = overlay.querySelector('#checkForm');
+    const errEl = overlay.querySelector('#checkFormError');
+    errEl.textContent = '';
+
+    const data = {
+      amount: global.utils.parseAmount(form.amount.value),
+      purpose: form.purpose.value.trim(),
+      checkDate: form.checkDate.value,
+      realizeDate: form.realizeDate.value,
+      autoRealize: form.autoRealize.checked,
+      realized: form.realized.checked,
+      note: form.note.value.trim()
+    };
+
+    if (!data.amount || data.amount <= 0) {
+      errEl.textContent = t('checks.err.amount', 'Iznos mora biti veći od 0.');
+      return;
+    }
+    if (!data.purpose) {
+      errEl.textContent = t('checks.err.purpose', 'Opis je obavezan.');
+      return;
+    }
+    if (!data.checkDate) {
+      errEl.textContent = t('checks.err.date', 'Datum čeka je obavezan.');
+      return;
+    }
+
+    let record;
+    if (state.editingCheckId) {
+      const existing = state.checks.find(function (x) { return x.id === state.editingCheckId; });
+      if (!existing) return;
+      record = Object.assign({}, existing, data);
+      if (data.realized && !existing.realized) {
+        record.realizedAt = new Date().toISOString();
+      }
+    } else {
+      record = Object.assign({
+        id: global.utils.uid('check'),
+        createdAt: new Date().toISOString(),
+        realizedAt: data.realized ? new Date().toISOString() : null
+      }, data);
+    }
+
+    global.storage.save(STORE_CHECKS, record).then(function () {
+      closeForm();
+      loadAll().then(function () {
+        const view = document.getElementById('view-bills');
+        if (view) refreshAll(view);
+        if (global.home) global.home.refresh();
+      });
+    }).catch(function (err) {
+      errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
+    });
+  }
+
+  function openCheckDetail(c) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    overlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + global.utils.escapeHtml(c.purpose || '') + '</h3>',
+      '  <div class="detail-row"><span class="detail-label">' + t('checks.field.amount', 'Iznos') + '</span><span class="detail-value">' + formatAmount(c.amount) + ' дин. RSD</span></div>',
+      c.checkDate ? '  <div class="detail-row"><span class="detail-label">' + t('checks.field.checkDate', 'Datum čeka') + '</span><span class="detail-value">' + global.utils.formatDate(c.checkDate, lang()) + '</span></div>' : '',
+      c.realizeDate ? '  <div class="detail-row"><span class="detail-label">' + t('checks.field.realizeDate', 'Realizacija') + '</span><span class="detail-value">' + global.utils.formatDate(c.realizeDate, lang()) + '</span></div>' : '',
+      '  <div class="detail-row"><span class="detail-label">' + t('checks.field.status', 'Status') + '</span><span class="detail-value">' + (c.realized ? '✓ ' + t('checks.status.realized', 'Realizovan') : t('checks.status.pending', 'Nerealizovan')) + '</span></div>',
+      c.note ? '  <div class="detail-row" style="flex-direction: column; align-items: flex-start;"><span class="detail-label">' + t('checks.field.note', 'Napomena') + '</span><span class="detail-value" style="text-align: left;">' + global.utils.escapeHtml(c.note) + '</span></div>' : '',
+      '  <div class="modal-actions">',
+      '    <button type="button" class="btn btn-secondary" id="checkDetailClose">' + t('common.close', 'Zatvori') + '</button>',
+      '    <button type="button" class="btn btn-secondary" id="checkDetailEdit" style="color: var(--color-brand);">' + t('common.edit', 'Izmeni') + '</button>',
+      '    <button type="button" class="btn btn-danger" id="checkDetailDelete">' + t('common.delete', 'Obriši') + '</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#checkDetailClose').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+    });
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+    overlay.querySelector('#checkDetailEdit').addEventListener('click', function () {
+      document.body.removeChild(overlay);
+      openCheckForm(c);
+    });
+    overlay.querySelector('#checkDetailDelete').addEventListener('click', function () {
+      const ok = global.confirm(t('checks.deleteConfirm', 'Obrisati ovaj ček?'));
+      if (!ok) return;
+      global.storage.delete(STORE_CHECKS, c.id).then(function () {
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
+        });
+      });
+    });
+
+    requestAnimationFrame(function () {
+      overlay.classList.add('show');
+    });
+  }
+
+  /* ---------- FAB ---------- */
+
+  function buildFAB(view) {
+    let fab = document.getElementById('billsFab');
+    if (!fab) {
+      fab = document.createElement('button');
+      fab.type = 'button';
+      fab.id = 'billsFab';
+      fab.className = 'fab-bills';
+      document.body.appendChild(fab);
+    }
+
+    /* Boja prema tabu */
+    if (state.view === 'checks') {
+      fab.style.backgroundColor = '#8B5CF6';
+      fab.setAttribute('aria-label', t('checks.add', 'Dodaj ček'));
+    } else if (state.view === 'rates') {
+      fab.style.backgroundColor = '#6C5CE7';
+      fab.setAttribute('aria-label', t('rates.add', 'Dodaj ratu'));
+    } else {
+      fab.style.backgroundColor = '';
+      fab.setAttribute('aria-label', t('bills.add', 'Dodaj račun'));
+    }
+
+    fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+
+    fab.onclick = function () {
+      if (state.view === 'checks') openCheckForm(null);
+      else if (state.view === 'rates') openRateForm(null);
+      else openBillForm(null);
+    };
+  }
+
+  function toggleFabVisibility() {
+    const fab = document.getElementById('billsFab');
+    if (!fab) return;
+    const route = global.router && global.router.current ? global.router.current() : 'home';
+    fab.style.display = route === 'bills' ? '' : 'none';
+  }
+
+  /* ---------- OSVEŽI ---------- */
 
   function refreshAll(view) {
     if (!view) view = document.getElementById('view-bills');
     if (!view) return;
 
-    /* Očisti i ponovo izgradi */
     view.innerHTML = '';
     const header = buildHeader();
     view.appendChild(header);
@@ -811,16 +2198,20 @@
   function init() {
     if (!state.month) state.month = currentMonthISO();
 
-    /* Osiguraj da view ima header */
     const view = document.getElementById('view-bills');
-    if (view) {
-      if (!view.querySelector('.module-header')) {
-        view.innerHTML = '';
-        view.appendChild(buildHeader());
-      }
+    if (view && !view.querySelector('.module-header')) {
+      view.innerHTML = '';
+      view.appendChild(buildHeader());
     }
 
     loadAll().then(function () {
+      /* Prvo pokreni auto-realizaciju čekova */
+      return autoRealizeChecks();
+    }).then(function (changed) {
+      if (changed > 0) {
+        return loadAll();
+      }
+    }).then(function () {
       const v = document.getElementById('view-bills');
       if (v) renderInto(v);
     });
@@ -843,10 +2234,13 @@
               v.innerHTML = '';
               v.appendChild(buildHeader());
             }
-            loadAll().then(function () { refreshAll(v); });
+            loadAll().then(function () {
+              return autoRealizeChecks();
+            }).then(function () {
+              return loadAll();
+            }).then(function () { refreshAll(v); });
           }
         } else {
-          /* Sakrij FAB kada nismo na bills ruti */
           const fab = document.getElementById('billsFab');
           if (fab) fab.style.display = 'none';
         }
@@ -859,6 +2253,7 @@
     loadAll: loadAll,
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
-    addCustomCategory: addCustomCategory
+    addCustomCategory: addCustomCategory,
+    autoRealizeChecks: autoRealizeChecks
   };
 })(window);
