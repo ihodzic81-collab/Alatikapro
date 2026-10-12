@@ -132,7 +132,7 @@
 }
 
 .rem-item.is-birthday {
-  border-left: 3px solid var(--color-module-items);
+  border-left: 3px solid #EC4899; /* roze za rođendan */
 }
 
 .rem-check {
@@ -158,6 +158,32 @@
   background-color: var(--color-brand);
   border-color: var(--color-brand);
   color: #ffffff;
+}
+
+/* =====================
+   IKONICA TORTE (za rođendane)
+   ===================== */
+.rem-birthday-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(139, 92, 246, 0.15));
+  color: #EC4899;
+  margin-top: 0;
+}
+
+.rem-birthday-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+:root[data-theme="dark"] .rem-birthday-icon {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.25));
+  color: #F9A8D4;
 }
 
 .rem-body {
@@ -202,6 +228,43 @@
 .rem-meta-item.soon {
   color: var(--color-warning);
   font-weight: 600;
+}
+
+/* Nova linija za rođendan — "Trenutno X god. · Puni Y za Z dana" */
+.rem-birthday-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.rem-birthday-info .age-now {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.rem-birthday-info .turns-in {
+  color: #EC4899;
+  font-weight: 600;
+}
+
+:root[data-theme="dark"] .rem-birthday-info .turns-in {
+  color: #F9A8D4;
+}
+
+.rem-birthday-info .turns-today {
+  color: #EC4899;
+  font-weight: 700;
+  background: rgba(236, 72, 153, 0.12);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.rem-birthday-info .sep {
+  color: var(--color-text-subtle);
+  opacity: 0.6;
 }
 
 .rem-priority {
@@ -348,6 +411,15 @@
   margin-bottom: 0;
 }
 
+/* Zaključano polje "Ponavljanje" (disabled) */
+.select:disabled,
+select:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
 /* =====================
    CHIP za kategorije
    ===================== */
@@ -362,8 +434,12 @@
 }
 
 .rem-category-chip.birthday {
-  background-color: rgba(139, 92, 246, 0.15);
-  color: var(--color-module-items);
+  background-color: rgba(236, 72, 153, 0.15);
+  color: #EC4899;
+}
+
+:root[data-theme="dark"] .rem-category-chip.birthday {
+  color: #F9A8D4;
 }
 
 /* =====================
@@ -387,18 +463,39 @@
 }
 
 /* =====================
-   DANAS-ROĐENDAN BANNER (u listi)
+   DANAS-ROĐENDAN BANNER
    ===================== */
 .rem-item.birthday-today {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(108, 92, 231, 0.06));
-  border-color: rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08));
+  border-color: rgba(236, 72, 153, 0.35);
 }
 
 :root[data-theme="dark"] .rem-item.birthday-today {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(108, 92, 231, 0.08));
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.20), rgba(139, 92, 246, 0.12));
 }
 
 .rem-item.birthday-today .rem-title {
-  color: var(--color-module-items);
+  color: #EC4899;
   font-weight: 700;
+}
+
+:root[data-theme="dark"] .rem-item.birthday-today .rem-title {
+  color: #F9A8D4;
+}
+
+/* =====================
+   MALE PRILAGODBE
+   ===================== */
+@media (max-width: 360px) {
+  .rem-birthday-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .rem-birthday-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  .rem-birthday-info {
+    font-size: 0.76rem;
+  }
 }
