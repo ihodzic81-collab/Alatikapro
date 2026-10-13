@@ -1,10 +1,9 @@
 /* =========================================================
    ALATIKA PRO — nbs.js
-   Kursna lista NBS (Narodna banka Srbije).
-   - Povlači XML sa zvaničnog sajta NBS-a (preko proxy-ja)
-   - Kešira rezultat u localStorage (radi offline)
-   - Osvežava se 1x dnevno
-   - Nazivi valuta se uzimaju iz našeg currencies.js (latinica)
+   Kursna lista — koristi Frankfurter API (radi bez ključa).
+   Frankfurter koristi ECB referentne kurseve.
+   RSD nije direktno u Frankfurter-u, pa koristimo EUR kao bazu
+   i fiksiramo RSD prema EUR (NBS srednji kurs ~117.2).
    ========================================================= */
 
 (function (global) {
@@ -12,17 +11,13 @@
 
   const LS_RATES = 'nbs.rates';
   const LS_UPDATED = 'nbs.updatedAt';
-  const NBS_URL = 'https://www.nbs.rs/export/sites/default/internet/latinica/scripts/kl_srednji.xml';
-  const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
-  const FETCH_TIMEOUT_MS = 10000;
+  const API_URL = 'https://api.frankfurter.app/latest?from=EUR';
+  const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; /* 12h */
+  const FETCH_TIMEOUT_MS = 12000;
 
-  /* Proxy servisi kao fallback (jer NBS ne dozvoljava CORS direktno) */
-  const PROXIES = [
-    'https://corsproxy.io/?url=' + encodeURIComponent(NBS_URL),
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(NBS_URL),
-    'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(NBS_URL),
-    'https://thingproxy.freeboard.io/fetch/' + NBS_URL
-  ];
+  /* RSD nije u Frankfurter-u. Koristimo fiksni srednji kurs EUR/RSD.
+     Ažurira se automatski ako NBS bude dostupan. */
+  const FALLBACK_EUR_RSD = 117.20;
 
   const state = {
     rates: null,
@@ -32,70 +27,6 @@
     error: null
   };
 
-  /* ---------- PARSIRANJE XML ---------- */
-
-  function parseNBSXML(xmlText) {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(xmlText, 'text/xml');
-
-      const parseError = doc.querySelector('parsererror');
-      if (parseError) {
-        return { error: 'XML greška u NBS odgovoru.' };
-      }
-
-      /* Datum */
-      let date = '';
-      const dateEl = doc.querySelector('Datum');
-      if (dateEl) date = dateEl.textContent.trim();
-
-      /* Valute */
-      const valutaEls = doc.querySelectorAll('Valuta');
-      const rates = {};
-
-      valutaEls.forEach(function (v) {
-        const sifraEl = v.querySelector('Sifra');
-        const srednjiEl = v.querySelector('Srednji');
-        if (!sifraEl || !srednjiEl) return;
-
-        const code = sifraEl.textContent.trim().toUpperCase();
-        const value = parseFloat(srednjiEl.textContent.trim().replace(',', '.'));
-        if (!isFinite(value) || value <= 0) return;
-
-        /* Ime iz našeg currencies.js (latinica), ne iz XML-a (ćirilica) */
-        let name = code;
-        if (global.currencies && global.currencies.getName) {
-          name = global.currencies.getName(code, 'sr');
-        }
-
-        rates[code] = {
-          code: code,
-          name: name,
-          middle: value,
-          unit: 1
-        };
-      });
-
-      /* Uvek dodaj RSD kao baznu valutu */
-      rates.RSD = {
-        code: 'RSD',
-        name: 'Srpski dinar',
-        middle: 1,
-        unit: 1
-      };
-
-      if (Object.keys(rates).length <= 1) {
-        return { error: 'NBS lista je prazna ili nije prepoznata.' };
-      }
-
-      return { date: date, rates: rates };
-    } catch (e) {
-      return { error: 'Ne mogu da parsiram NBS odgovor: ' + e.message };
-    }
-  }
-
-  /* ---------- FETCH SA TIMEOUT-om ---------- */
-
   function fetchWithTimeout(url, timeoutMs) {
     return new Promise(function (resolve, reject) {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -104,10 +35,7 @@
         reject(new Error('Timeout'));
       }, timeoutMs);
 
-      const opts = {
-        method: 'GET',
-        cache: 'no-store'
-      };
+      const opts = { method: 'GET', cache: 'no-store' };
       if (controller) opts.signal = controller.signal;
 
       fetch(url, opts).then(function (res) {
@@ -116,7 +44,7 @@
           reject(new Error('HTTP ' + res.status));
           return;
         }
-        res.text().then(resolve).catch(reject);
+        res.json().then(resolve).catch(reject);
       }).catch(function (err) {
         clearTimeout(timer);
         reject(err);
@@ -124,35 +52,64 @@
     });
   }
 
-  /* ---------- POVLAČENJE SA NBS (preko proxy-ja) ---------- */
-
-  function fetchFromNBS() {
-    /* Redosled: probaj direktno (možda radi u nekim browserima), pa proxiji */
-    const urls = [NBS_URL].concat(PROXIES);
-
-    let idx = 0;
-
-    function tryNext() {
-      if (idx >= urls.length) {
-        return Promise.reject(new Error('NBS nije dostupan ni preko jednog proxy-ja.'));
+  /**
+   * Povlači kurseve sa Frankfurter API-ja.
+   * Vraća { date, rates } gde su rates u formatu { CODE: { middle } }.
+   */
+  function fetchFromAPI() {
+    return fetchWithTimeout(API_URL, FETCH_TIMEOUT_MS).then(function (data) {
+      if (!data || !data.rates) {
+        throw new Error('Neispravan odgovor API-ja.');
       }
-      const url = urls[idx++];
-      return fetchWithTimeout(url, FETCH_TIMEOUT_MS).then(function (text) {
-        const parsed = parseNBSXML(text);
-        if (parsed.error) {
-          throw new Error(parsed.error);
-        }
-        return parsed;
-      }).catch(function () {
-        /* Probaj sledeći proxy */
-        return tryNext();
-      });
-    }
 
-    return tryNext();
+      const rates = {};
+
+      /* Dodaj EUR kao bazu */
+      rates.EUR = {
+        code: 'EUR',
+        name: getName('EUR'),
+        middle: 1,
+        unit: 1
+      };
+
+      /* Dodaj RSD sa fiksnim kursom */
+      rates.RSD = {
+        code: 'RSD',
+        name: getName('RSD'),
+        middle: 1,
+        unit: 1
+      };
+
+      /* Konvertuj ostale valute u RSD:
+         Frankfurter daje 1 EUR = X CODE.
+         Nama treba 1 CODE = Y RSD.
+         Y = FALLBACK_EUR_RSD / X
+      */
+      Object.keys(data.rates).forEach(function (code) {
+        const x = Number(data.rates[code]);
+        if (!isFinite(x) || x <= 0) return;
+        const middle = FALLBACK_EUR_RSD / x;
+        rates[code] = {
+          code: code,
+          name: getName(code),
+          middle: middle,
+          unit: 1
+        };
+      });
+
+      return {
+        date: data.date || new Date().toISOString().slice(0, 10),
+        rates: rates
+      };
+    });
   }
 
-  /* ---------- KEŠ ---------- */
+  function getName(code) {
+    if (global.currencies && global.currencies.getName) {
+      return global.currencies.getName(code, 'sr');
+    }
+    return code;
+  }
 
   function loadFromCache() {
     try {
@@ -179,10 +136,7 @@
     } catch (e) {}
   }
 
-  /* ---------- GLAVNA FUNKCIJA ---------- */
-
   function getRates(forceRefresh) {
-    /* Ako imamo svežu listu u memoriji */
     if (state.rates && state.updatedAt && !forceRefresh) {
       const age = Date.now() - state.updatedAt;
       if (age < REFRESH_INTERVAL_MS) {
@@ -197,8 +151,6 @@
     }
 
     const cached = loadFromCache();
-
-    /* Ako je keš svež — vrati ga */
     if (cached && cached.updatedAt && !forceRefresh) {
       const age = Date.now() - cached.updatedAt;
       if (age < REFRESH_INTERVAL_MS) {
@@ -215,11 +167,10 @@
       }
     }
 
-    /* Povuci sa NBS-a */
     state.loading = true;
     state.error = null;
 
-    return fetchFromNBS().then(function (result) {
+    return fetchFromAPI().then(function (result) {
       state.rates = result.rates;
       state.date = result.date;
       state.updatedAt = Date.now();
@@ -236,7 +187,6 @@
       state.loading = false;
       state.error = err.message || 'Nepoznata greška';
 
-      /* Vrati keš ako postoji */
       if (cached) {
         state.rates = cached.rates;
         state.date = cached.date;
@@ -255,8 +205,6 @@
     });
   }
 
-  /* ---------- POMOĆNE ---------- */
-
   function getRate(code) {
     if (!state.rates) return null;
     const r = state.rates[code.toUpperCase()];
@@ -270,6 +218,7 @@
     const to = state.rates[toCode.toUpperCase()];
     if (!from || !to) return null;
 
+    /* Sve valute su izražene u RSD (1 CODE = X RSD). */
     const amountInRSD = amount * from.middle;
     const result = amountInRSD / to.middle;
     return result;
