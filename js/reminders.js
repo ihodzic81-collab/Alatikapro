@@ -1007,19 +1007,7 @@
     }
   }
 
-  global.reminders = {
-    init: init,
-    loadAll: loadAll,
-    _state: state,
-    DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
-    getAllCategories: getAllCategories,
-    addCustomCategory: addCustomCategory,
-    effectiveDate: effectiveDate,
-    isBirthday: isBirthday,
-    parseBirthDate: parseBirthDate,
-    currentAge: currentAge
-  };
-  global.reminders = {
+    global.reminders = {
     init: init,
     loadAll: loadAll,
     _state: state,
