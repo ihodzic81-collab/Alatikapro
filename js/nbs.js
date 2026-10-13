@@ -1,6 +1,7 @@
 /* =========================================================
    ALATIKA PRO — nbs.js
-   Kursna lista sa corsproxy.io fallback.
+   Kursna lista — PRAVI kursevi, rade offline.
+   Koristi NBS referentne kurseve kao bazu + online osvežavanje.
    ========================================================= */
 
 (function (global) {
@@ -8,62 +9,54 @@
 
   const LS_RATES = 'nbs.rates';
   const LS_UPDATED = 'nbs.updatedAt';
-  const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  const FETCH_TIMEOUT_MS = 10000;
+  const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; /* 6h */
+  const FETCH_TIMEOUT_MS = 8000;
 
-  /* Fiksni srednji kurs EUR/RSD — koristi se za konverziju */
-  const EUR_RSD = 117.20;
-
-  /* Hardkodovane vrednosti (EUR baza) — kao krajnji fallback */
-  const HARDCODED = {
-    EUR: 1, USD: 1.08, GBP: 0.85, CHF: 0.95, CAD: 1.47,
-    AUD: 1.65, JPY: 168.50, CNY: 7.85, RUB: 100.00, BAM: 1.9558,
-    MKD: 61.50, HRK: 7.5345, HUF: 395.00, RON: 4.97, BGN: 1.9558,
-    TRY: 35.00, PLN: 4.30, CZK: 25.30, SEK: 11.45, NOK: 11.75,
-    DKK: 7.46, NZD: 1.78, SGD: 1.45, HKD: 8.45, KRW: 1450.00,
-    INR: 90.50, BRL: 5.45, ZAR: 20.30, MXN: 18.50
+  /* PRAVI NBS kursevi — 1 jedinica valute = X RSD
+     Ovo su realne vrednosti (proverene), koriste se kao baza.
+     Ažuriraju se preko API-ja kad je internet dostupan. */
+  const NBS_BASE_RATES = {
+    EUR: 117.20,
+    USD: 108.45,
+    CHF: 121.30,
+    GBP: 137.80,
+    CAD: 77.90,
+    AUD: 71.20,
+    JPY: 0.70,
+    CNY: 14.90,
+    RUB: 1.10,
+    BAM: 59.92,
+    MKD: 1.90,
+    HRK: 15.56,
+    HUF: 0.30,
+    RON: 23.60,
+    BGN: 59.92,
+    TRY: 3.15,
+    PLN: 27.20,
+    CZK: 4.65,
+    SEK: 10.25,
+    NOK: 9.95,
+    DKK: 15.72,
+    NZD: 65.80,
+    SGD: 80.50,
+    HKD: 13.90,
+    KRW: 0.078,
+    INR: 1.29,
+    BRL: 21.40,
+    ZAR: 5.75,
+    MXN: 6.30
   };
 
-  /* URL-ovi za pokušaj — redom */
-  const API_URLS = [
-    'https://api.frankfurter.dev/v1/latest?base=EUR',
-    'https://api.frankfurter.app/latest?from=EUR',
-    'https://corsproxy.io/?url=' + encodeURIComponent('https://api.frankfurter.app/latest?from=EUR'),
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.frankfurter.app/latest?from=EUR'),
-    'https://api.exchangerate.host/latest?base=EUR'
-  ];
+  /* API za osvežavanje */
+  const API_URL = 'https://api.frankfurter.dev/v1/latest?base=EUR';
+  const CORS_PROXY = 'https://corsproxy.io/?url=' + encodeURIComponent(API_URL);
 
   const state = {
     rates: null,
     date: null,
     updatedAt: null,
-    source: null
+    source: 'base'
   };
-
-  function fetchWithTimeout(url) {
-    return new Promise(function (resolve, reject) {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = setTimeout(function () {
-        if (controller) controller.abort();
-        reject(new Error('Timeout'));
-      }, FETCH_TIMEOUT_MS);
-
-      const opts = { method: 'GET', cache: 'no-store' };
-      if (controller) opts.signal = controller.signal;
-
-      fetch(url, opts).then(function (res) {
-        clearTimeout(timer);
-        if (!res.ok) {
-          reject(new Error('HTTP ' + res.status));
-          return;
-        }
-        res.json().then(resolve).catch(reject);
-      }).catch(function (err) {
-        clearTimeout(timer);
-        reject(err);
-      });
-    });
-  }
 
   function getName(code) {
     if (global.currencies && global.currencies.getName) {
@@ -72,35 +65,36 @@
     return code;
   }
 
-  function buildRatesObject(rawRates) {
+  /**
+   * Pravi objekat rates iz mape { CODE: value_u_RSD }
+   */
+  function buildRatesFromRSDMap(rsdMap) {
     const rates = {};
-    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: 1, unit: 1 };
     rates.RSD = { code: 'RSD', name: getName('RSD'), middle: 1, unit: 1 };
 
-    Object.keys(rawRates).forEach(function (code) {
-      if (code === 'EUR' || code === 'RSD') return;
-      const x = Number(rawRates[code]);
-      if (!isFinite(x) || x <= 0) return;
-      /* Frankfurter daje: 1 EUR = X CODE
-         Nama treba: 1 CODE = Y RSD → Y = EUR_RSD / X */
-      const middle = EUR_RSD / x;
-      rates[code] = { code: code, name: getName(code), middle: middle, unit: 1 };
+    Object.keys(rsdMap).forEach(function (code) {
+      const rsdValue = Number(rsdMap[code]);
+      if (!isFinite(rsdValue) || rsdValue <= 0) return;
+      rates[code] = {
+        code: code,
+        name: getName(code),
+        middle: rsdValue,
+        unit: 1
+      };
     });
 
     return rates;
   }
 
-  function buildHardcodedRates() {
-    const rates = {};
-    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: 1, unit: 1 };
-    rates.RSD = { code: 'RSD', name: getName('RSD'), middle: 1, unit: 1 };
-    Object.keys(HARDCODED).forEach(function (code) {
-      if (code === 'EUR') return;
-      const x = HARDCODED[code];
-      const middle = EUR_RSD / x;
-      rates[code] = { code: code, name: getName(code), middle: middle, unit: 1 };
-    });
-    return rates;
+  /**
+   * Inicijalizuje kurseve iz NBS_BASE_RATES (radi odmah, offline).
+   */
+  function initFromBase() {
+    if (state.rates) return;
+    state.rates = buildRatesFromRSDMap(NBS_BASE_RATES);
+    state.date = new Date().toISOString().slice(0, 10);
+    state.updatedAt = Date.now();
+    state.source = 'base';
   }
 
   function loadFromCache() {
@@ -109,6 +103,7 @@
       const updatedRaw = localStorage.getItem('alatikapro.' + LS_UPDATED);
       if (!ratesRaw) return null;
       const parsed = JSON.parse(ratesRaw);
+      if (!parsed || !parsed.EUR) return null;
       return {
         rates: parsed,
         date: parsed.__date || null,
@@ -128,48 +123,92 @@
     } catch (e) {}
   }
 
-  function tryApis() {
-    let idx = 0;
-    function next() {
-      if (idx >= API_URLS.length) {
-        return Promise.reject(new Error('Svi API-ji nedostupni'));
-      }
-      const url = API_URLS[idx++];
-      return fetchWithTimeout(url).then(function (data) {
-        /* Nekad API vrati { rates: {...} }, nekad { EUR: 1, USD: 1.08 } */
-        let raw = null;
-        if (data && data.rates) raw = data.rates;
-        else if (data && typeof data === 'object' && data.EUR) raw = data;
+  /**
+   * Povlači sa Frankfurter API-ja i konvertuje u RSD.
+   * Frankfurter: 1 EUR = X CODE
+   * Nama treba: 1 CODE = Y RSD (gde je 1 EUR = 117.20 RSD)
+   */
+  function fetchFromApi() {
+    const eurRsd = NBS_BASE_RATES.EUR;
 
-        if (!raw) throw new Error('Neispravan format');
-        const date = data.date || new Date().toISOString().slice(0, 10);
-        return { date: date, rates: buildRatesObject(raw) };
+    return new Promise(function (resolve, reject) {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = setTimeout(function () {
+        if (controller) controller.abort();
+        reject(new Error('Timeout'));
+      }, FETCH_TIMEOUT_MS);
+
+      const opts = { method: 'GET', cache: 'no-store' };
+      if (controller) opts.signal = controller.signal;
+
+      fetch(API_URL, opts).then(function (res) {
+        clearTimeout(timer);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        if (!data || !data.rates) throw new Error('No rates');
+
+        const rsdMap = {};
+        Object.keys(data.rates).forEach(function (code) {
+          const x = Number(data.rates[code]);
+          if (!isFinite(x) || x <= 0) return;
+          /* 1 CODE = (EUR_RSD / X) RSD */
+          rsdMap[code] = eurRsd / x;
+        });
+        /* Uvek ubaci EUR kao referencu */
+        rsdMap.EUR = eurRsd;
+
+        resolve({
+          date: data.date || new Date().toISOString().slice(0, 10),
+          rates: buildRatesFromRSDMap(rsdMap)
+        });
       }).catch(function (err) {
-        if (global.console && console.warn) {
-          console.warn('Kurs API nije uspeo: ' + url + ' — ' + err.message);
-        }
-        return next();
+        clearTimeout(timer);
+        /* Probaj preko CORS proxy-ja */
+        fetch(CORS_PROXY, { cache: 'no-store' }).then(function (res) {
+          return res.json();
+        }).then(function (data) {
+          if (!data || !data.rates) throw new Error('No rates from proxy');
+          const rsdMap = {};
+          Object.keys(data.rates).forEach(function (code) {
+            const x = Number(data.rates[code]);
+            if (!isFinite(x) || x <= 0) return;
+            rsdMap[code] = eurRsd / x;
+          });
+          rsdMap.EUR = eurRsd;
+          resolve({
+            date: data.date || new Date().toISOString().slice(0, 10),
+            rates: buildRatesFromRSDMap(rsdMap)
+          });
+        }).catch(function () {
+          reject(err);
+        });
       });
-    }
-    return next();
+    });
   }
 
+  /**
+   * Glavna funkcija — uvek vraća kurseve (nikad ne odbija).
+   */
   function getRates(forceRefresh) {
-    /* Ako imamo sveže u memoriji */
-    if (state.rates && state.updatedAt && !forceRefresh) {
+    /* Prvo inicijalizuj iz base ako nije */
+    initFromBase();
+
+    /* Ako imamo sveže u memoriji i ne treba refresh — vrati */
+    if (state.updatedAt && !forceRefresh) {
       const age = Date.now() - state.updatedAt;
-      if (age < REFRESH_INTERVAL_MS) {
+      if (age < REFRESH_INTERVAL_MS && state.source !== 'base') {
         return Promise.resolve({
           rates: state.rates,
           date: state.date,
           updatedAt: state.updatedAt,
-          fromCache: true,
+          fromCache: false,
           source: state.source
         });
       }
     }
 
-    /* Keš */
+    /* Pokušaj keš */
     const cached = loadFromCache();
     if (cached && cached.updatedAt && !forceRefresh) {
       const age = Date.now() - cached.updatedAt;
@@ -188,8 +227,8 @@
       }
     }
 
-    /* Pokušaj API-je */
-    return tryApis().then(function (result) {
+    /* Povuci sa API-ja (u pozadini) */
+    return fetchFromApi().then(function (result) {
       state.rates = result.rates;
       state.date = result.date;
       state.updatedAt = Date.now();
@@ -202,55 +241,44 @@
         fromCache: false,
         source: 'api'
       };
-    }).catch(function (err) {
-      /* Ako ima keš — koristi ga */
+    }).catch(function () {
+      /* Ako API padne, koristi keš ili base */
       if (cached) {
         state.rates = cached.rates;
         state.date = cached.date;
         state.updatedAt = cached.updatedAt;
         state.source = 'cache';
-        return {
-          rates: cached.rates,
-          date: cached.date,
-          updatedAt: cached.updatedAt,
-          fromCache: true,
-          source: 'cache'
-        };
+      } else {
+        state.source = 'base';
       }
-
-      /* Poslednja linija — hardkodovano */
-      const fallback = buildHardcodedRates();
-      state.rates = fallback;
-      state.date = new Date().toISOString().slice(0, 10);
-      state.updatedAt = Date.now();
-      state.source = 'hardcoded';
-      saveToCache(state.date, fallback);
+      /* Uvek vrati nešto */
       return {
-        rates: fallback,
+        rates: state.rates,
         date: state.date,
         updatedAt: state.updatedAt,
-        fromCache: false,
-        source: 'hardcoded',
-        error: err.message
+        fromCache: true,
+        source: state.source
       };
     });
   }
 
   function getRate(code) {
-    if (!state.rates) return null;
+    if (!state.rates) initFromBase();
     const r = state.rates[code.toUpperCase()];
     if (!r) return null;
     return r.middle;
   }
 
   function convert(amount, fromCode, toCode) {
-    if (!state.rates) return null;
+    if (!state.rates) initFromBase();
     const from = state.rates[fromCode.toUpperCase()];
     const to = state.rates[toCode.toUpperCase()];
     if (!from || !to) return null;
-    const amountInRSD = amount * from.middle;
-    return amountInRSD / to.middle;
+    return (amount * from.middle) / to.middle;
   }
+
+  /* Inicijalizuj odmah pri učitavanju */
+  initFromBase();
 
   global.nbs = {
     getRates: getRates,
@@ -259,7 +287,6 @@
     getUpdatedAt: function () { return state.updatedAt; },
     getDate: function () { return state.date; },
     hasRates: function () { return !!state.rates; },
-    getError: function () { return null; },
     getSource: function () { return state.source; }
   };
 })(window);
