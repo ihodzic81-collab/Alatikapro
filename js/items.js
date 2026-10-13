@@ -974,3 +974,9 @@
     CATEGORIES: CATEGORIES.slice()
   };
 })(window);
+  global.items = {
+    init: init,
+    loadAll: loadAll,
+    openForm: openForm,   /* <-- DODAJ OVO */
+    CATEGORIES: CATEGORIES.slice()
+  };
