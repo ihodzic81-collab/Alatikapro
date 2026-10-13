@@ -219,3 +219,35 @@ body,
   background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0));
   pointer-events: none;
 }
+/* =====================
+   LOGO "A" — VEĆI, MODERNIJI
+   ===================== */
+.brand-logo {
+  width: 52px !important;
+  height: 52px !important;
+  font-size: 1.85rem !important;
+  font-weight: 900 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #A78BFA 0%, #8B7BF0 40%, #6C5CE7 100%) !important;
+  color: #ffffff !important;
+  letter-spacing: -0.02em !important;
+  box-shadow:
+    0 6px 16px rgba(108, 92, 231, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 -3px 6px rgba(76, 29, 149, 0.35),
+    inset 0 2px 4px rgba(255, 255, 255, 0.4) !important;
+  position: relative;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.brand-logo::before {
+  content: '';
+  position: absolute;
+  top: 3px; left: 15%; right: 15%;
+  height: 38%;
+  border-radius: 12px 12px 50% 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0));
+  pointer-events: none;
+}
