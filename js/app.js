@@ -95,19 +95,6 @@
     }
   }
 
-  /**
-   * Inicijalizuje kursnu listu na Početnoj (mali widget).
-   */
-  function initHomeRates() {
-    if (!global.ratesWidget) return;
-    const el = document.getElementById('homeRates');
-    if (!el) return;
-    global.ratesWidget.renderHomeWidget(el);
-  }
-
-  /**
-   * Univerzalno back dugme.
-   */
   function initBackButtons() {
     document.addEventListener('click', function (e) {
       const btn = e.target.closest('[data-back]');
@@ -119,10 +106,6 @@
     });
   }
 
-  /**
-   * Automatska realizacija čekova — pokreće se pri startu
-   * i periodično na svakih 30 minuta.
-   */
   function startChecksAutoRealize() {
     if (!global.bills || !global.bills.autoRealizeChecks) return;
 
@@ -138,20 +121,21 @@
   }
 
   /**
-   * Osvežava kursnu listu u pozadini (1x dnevno).
+   * Automatsko osvežavanje kursne liste (NBS):
+   * - Pri startu povlači (ili koristi keš ako je svež)
+   * - Na svakih 6h povlači ponovo
    */
   function startRatesRefresh() {
     if (!global.nbs) return;
-    /* Povuci odmah pri startu — NBS sam proverava keš */
-    global.nbs.getRates().then(function () {
-      /* Osveži home widget ako postoji */
-      const homeRates = document.getElementById('homeRates');
-      if (homeRates && global.ratesWidget) {
-        global.ratesWidget.renderHomeWidget(homeRates);
-      }
-    }).catch(function () {
-      /* Tiho — greška se vidi u widgetu */
-    });
+
+    function refresh() {
+      global.nbs.getRates().catch(function () {
+        /* Tiho — greška se vidi u widgetu */
+      });
+    }
+
+    refresh();
+    setInterval(refresh, 6 * 60 * 60 * 1000);
   }
 
   function applyInitialState() {
@@ -182,7 +166,6 @@
       initBills();
       initItems();
       initMoney();
-      initHomeRates();
       applyInitialState();
       startChecksAutoRealize();
       startRatesRefresh();
