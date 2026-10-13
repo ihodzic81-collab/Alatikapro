@@ -15,6 +15,8 @@
       'app.tagline': 'Sve važno, na jednom mestu.',
 
       'nav.home': 'Početna',
+      'home.quickActionsTitle': 'Brze akcije',
+      'conv.result': 'Rezultat',
       'nav.addReminder': 'Podsetnik',
       'nav.addBill': 'Račun',
       'nav.addItem': 'Dokument',
@@ -545,6 +547,8 @@
       'app.tagline': 'Everything important, in one place.',
 
       'nav.home': 'Home',
+      'home.quickActionsTitle': 'Quick actions',
+      'conv.result': 'Result',
       'nav.addReminder': 'Reminder',
       'nav.addBill': 'Bill',
       'nav.addItem': 'Document',
