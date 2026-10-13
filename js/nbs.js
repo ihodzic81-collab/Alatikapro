@@ -1,9 +1,6 @@
 /* =========================================================
    ALATIKA PRO — nbs.js
-   Kursna lista — koristi Frankfurter API (radi bez ključa).
-   Frankfurter koristi ECB referentne kurseve.
-   RSD nije direktno u Frankfurter-u, pa koristimo EUR kao bazu
-   i fiksiramo RSD prema EUR (NBS srednji kurs ~117.2).
+   Kursna lista sa više fallback API-ja + hardkodovana rezerva.
    ========================================================= */
 
 (function (global) {
@@ -11,20 +8,90 @@
 
   const LS_RATES = 'nbs.rates';
   const LS_UPDATED = 'nbs.updatedAt';
-  const API_URL = 'https://api.frankfurter.app/latest?from=EUR';
-  const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; /* 12h */
-  const FETCH_TIMEOUT_MS = 12000;
+  const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000;
+  const FETCH_TIMEOUT_MS = 8000;
 
-  /* RSD nije u Frankfurter-u. Koristimo fiksni srednji kurs EUR/RSD.
-     Ažurira se automatski ako NBS bude dostupan. */
+  /* RSD srednji kurs prema EUR — fiksna vrednost kao fallback */
   const FALLBACK_EUR_RSD = 117.20;
+
+  /* Hardkodovane rezervne vrednosti (EUR baza) — koristi se ako svi API-ji padnu */
+  const HARDCODED_FALLBACK = {
+    EUR: 1,
+    USD: 1.08,
+    GBP: 0.85,
+    CHF: 0.95,
+    CAD: 1.47,
+    AUD: 1.65,
+    JPY: 168.50,
+    CNY: 7.85,
+    RUB: 100.00,
+    BAM: 1.9558,
+    MKD: 61.50,
+    HRK: 7.5345,
+    HUF: 395.00,
+    RON: 4.97,
+    BGN: 1.9558,
+    TRY: 35.00,
+    PLN: 4.30,
+    CZK: 25.30,
+    SEK: 11.45,
+    NOK: 11.75,
+    DKK: 7.46,
+    NZD: 1.78,
+    SGD: 1.45,
+    HKD: 8.45,
+    KRW: 1450.00,
+    INR: 90.50,
+    BRL: 5.45,
+    ZAR: 20.30,
+    MXN: 18.50
+  };
+
+  /* API-ji — probaj redom */
+  const APIS = [
+    {
+      name: 'frankfurter.dev',
+      url: 'https://api.frankfurter.dev/v1/latest?base=EUR',
+      parse: function (data) {
+        if (!data || !data.rates) throw new Error('no rates');
+        return { date: data.date, rates: data.rates };
+      }
+    },
+    {
+      name: 'frankfurter.app',
+      url: 'https://api.frankfurter.app/latest?from=EUR',
+      parse: function (data) {
+        if (!data || !data.rates) throw new Error('no rates');
+        return { date: data.date, rates: data.rates };
+      }
+    },
+    {
+      name: 'open.er-api.com',
+      url: 'https://open.er-api.com/v6/latest/EUR',
+      parse: function (data) {
+        if (!data || !data.rates) throw new Error('no rates');
+        const d = new Date();
+        const date = d.toISOString().slice(0, 10);
+        return { date: date, rates: data.rates };
+      }
+    },
+    {
+      name: 'exchangerate.host',
+      url: 'https://api.exchangerate.host/latest?base=EUR',
+      parse: function (data) {
+        if (!data || !data.rates) throw new Error('no rates');
+        return { date: data.date, rates: data.rates };
+      }
+    }
+  ];
 
   const state = {
     rates: null,
     date: null,
     updatedAt: null,
     loading: false,
-    error: null
+    error: null,
+    source: null
   };
 
   function fetchWithTimeout(url, timeoutMs) {
@@ -52,63 +119,69 @@
     });
   }
 
-  /**
-   * Povlači kurseve sa Frankfurter API-ja.
-   * Vraća { date, rates } gde su rates u formatu { CODE: { middle } }.
-   */
-  function fetchFromAPI() {
-    return fetchWithTimeout(API_URL, FETCH_TIMEOUT_MS).then(function (data) {
-      if (!data || !data.rates) {
-        throw new Error('Neispravan odgovor API-ja.');
-      }
-
-      const rates = {};
-
-      /* Dodaj EUR kao bazu */
-      rates.EUR = {
-        code: 'EUR',
-        name: getName('EUR'),
-        middle: 1,
-        unit: 1
-      };
-
-      /* Dodaj RSD sa fiksnim kursom */
-      rates.RSD = {
-        code: 'RSD',
-        name: getName('RSD'),
-        middle: 1,
-        unit: 1
-      };
-
-      /* Konvertuj ostale valute u RSD:
-         Frankfurter daje 1 EUR = X CODE.
-         Nama treba 1 CODE = Y RSD.
-         Y = FALLBACK_EUR_RSD / X
-      */
-      Object.keys(data.rates).forEach(function (code) {
-        const x = Number(data.rates[code]);
-        if (!isFinite(x) || x <= 0) return;
-        const middle = FALLBACK_EUR_RSD / x;
-        rates[code] = {
-          code: code,
-          name: getName(code),
-          middle: middle,
-          unit: 1
-        };
-      });
-
-      return {
-        date: data.date || new Date().toISOString().slice(0, 10),
-        rates: rates
-      };
-    });
-  }
-
   function getName(code) {
     if (global.currencies && global.currencies.getName) {
       return global.currencies.getName(code, 'sr');
     }
     return code;
+  }
+
+  function buildRatesObject(rawRates) {
+    const rates = {};
+
+    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: 1, unit: 1 };
+    rates.RSD = { code: 'RSD', name: getName('RSD'), middle: 1, unit: 1 };
+
+    Object.keys(rawRates).forEach(function (code) {
+      if (code === 'EUR' || code === 'RSD') return;
+      const x = Number(rawRates[code]);
+      if (!isFinite(x) || x <= 0) return;
+      const middle = FALLBACK_EUR_RSD / x;
+      rates[code] = { code: code, name: getName(code), middle: middle, unit: 1 };
+    });
+
+    return rates;
+  }
+
+  /**
+   * Pokušava redom API-je. Vraća { date, rates, source }.
+   */
+  function fetchFromAPIs() {
+    let idx = 0;
+
+    function tryNext() {
+      if (idx >= APIS.length) {
+        return Promise.reject(new Error('Svi API-ji nedostupni'));
+      }
+      const api = APIS[idx++];
+      return fetchWithTimeout(api.url, FETCH_TIMEOUT_MS).then(function (data) {
+        const parsed = api.parse(data);
+        return {
+          date: parsed.date || new Date().toISOString().slice(0, 10),
+          rates: buildRatesObject(parsed.rates),
+          source: api.name
+        };
+      }).catch(function (err) {
+        if (global.console && console.warn) {
+          console.warn('NBS: API "' + api.name + '" nije uspeo:', err.message);
+        }
+        return tryNext();
+      });
+    }
+
+    return tryNext();
+  }
+
+  /**
+   * Hardkodovani fallback — koristi se ako svi API-ji padnu.
+   */
+  function buildHardcodedFallback() {
+    const rates = buildRatesObject(HARDCODED_FALLBACK);
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      rates: rates,
+      source: 'hardcoded'
+    };
   }
 
   function loadFromCache() {
@@ -145,7 +218,8 @@
           date: state.date,
           updatedAt: state.updatedAt,
           fromCache: true,
-          stale: false
+          stale: false,
+          source: state.source
         });
       }
     }
@@ -157,12 +231,14 @@
         state.rates = cached.rates;
         state.date = cached.date;
         state.updatedAt = cached.updatedAt;
+        state.source = 'cache';
         return Promise.resolve({
           rates: cached.rates,
           date: cached.date,
           updatedAt: cached.updatedAt,
           fromCache: true,
-          stale: false
+          stale: false,
+          source: 'cache'
         });
       }
     }
@@ -170,38 +246,58 @@
     state.loading = true;
     state.error = null;
 
-    return fetchFromAPI().then(function (result) {
+    return fetchFromAPIs().then(function (result) {
       state.rates = result.rates;
       state.date = result.date;
       state.updatedAt = Date.now();
       state.loading = false;
+      state.source = result.source;
       saveToCache(result.date, result.rates);
       return {
         rates: result.rates,
         date: result.date,
         updatedAt: state.updatedAt,
         fromCache: false,
-        stale: false
+        stale: false,
+        source: result.source
       };
     }).catch(function (err) {
       state.loading = false;
       state.error = err.message || 'Nepoznata greška';
 
+      /* Ako ima keš — koristi ga */
       if (cached) {
         state.rates = cached.rates;
         state.date = cached.date;
         state.updatedAt = cached.updatedAt;
+        state.source = 'cache';
         return {
           rates: cached.rates,
           date: cached.date,
           updatedAt: cached.updatedAt,
           fromCache: true,
           stale: true,
-          error: state.error
+          error: state.error,
+          source: 'cache'
         };
       }
 
-      throw new Error('Kursna lista nije dostupna. ' + state.error);
+      /* Poslednja linija odbrane — hardkodovano */
+      const fallback = buildHardcodedFallback();
+      state.rates = fallback.rates;
+      state.date = fallback.date;
+      state.updatedAt = Date.now();
+      state.source = 'hardcoded';
+      saveToCache(fallback.date, fallback.rates);
+      return {
+        rates: fallback.rates,
+        date: fallback.date,
+        updatedAt: state.updatedAt,
+        fromCache: false,
+        stale: true,
+        error: state.error,
+        source: 'hardcoded'
+      };
     });
   }
 
@@ -217,28 +313,15 @@
     const from = state.rates[fromCode.toUpperCase()];
     const to = state.rates[toCode.toUpperCase()];
     if (!from || !to) return null;
-
-    /* Sve valute su izražene u RSD (1 CODE = X RSD). */
     const amountInRSD = amount * from.middle;
-    const result = amountInRSD / to.middle;
-    return result;
+    return amountInRSD / to.middle;
   }
 
-  function getUpdatedAt() {
-    return state.updatedAt;
-  }
-
-  function getDate() {
-    return state.date;
-  }
-
-  function hasRates() {
-    return !!state.rates;
-  }
-
-  function getError() {
-    return state.error;
-  }
+  function getUpdatedAt() { return state.updatedAt; }
+  function getDate() { return state.date; }
+  function hasRates() { return !!state.rates; }
+  function getError() { return state.error; }
+  function getSource() { return state.source; }
 
   global.nbs = {
     getRates: getRates,
@@ -247,6 +330,7 @@
     getUpdatedAt: getUpdatedAt,
     getDate: getDate,
     hasRates: hasRates,
-    getError: getError
+    getError: getError,
+    getSource: getSource
   };
 })(window);
