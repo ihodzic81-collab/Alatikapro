@@ -2,6 +2,7 @@
    ALATIKA PRO — currencies.js
    Lista od 30 najpopularnijih svetskih valuta.
    + pomoćne funkcije za radne dane (za čekove).
+   + integracija sa NBS kursnom listom.
    ========================================================= */
 
 (function (global) {
@@ -78,18 +79,11 @@
 
   /* ---------- RADNI DANI (za čekove) ---------- */
 
-  /**
-   * Da li je datum subota ili nedelja?
-   */
   function isWeekend(date) {
     const d = date.getDay();
     return d === 0 || d === 6;
   }
 
-  /**
-   * Dodaje N radnih dana na dati datum.
-   * Preskače subote i nedelje.
-   */
   function addBusinessDays(date, n) {
     const result = new Date(date.getTime());
     let added = 0;
@@ -100,9 +94,6 @@
     return result;
   }
 
-  /**
-   * Vraća ISO datum N radnih dana od datog ISO datuma.
-   */
   function addBusinessDaysISO(isoDate, n) {
     if (!isoDate) return '';
     const parts = String(isoDate).split('-');
@@ -116,6 +107,33 @@
     return y + '-' + m + '-' + day;
   }
 
+  /* ---------- NBS INTEGRACIJA ---------- */
+
+  /**
+   * Vraća srednji kurs za datu valutu (u RSD).
+   * Ako NBS modul nije dostupan ili kurs nije pronađen — vraća null.
+   * RSD uvek vraća 1.
+   */
+  function getRateFromNBS(code) {
+    if (!code) return null;
+    const c = String(code).toUpperCase();
+    if (c === 'RSD') return 1;
+    if (global.nbs && global.nbs.getRate) {
+      const r = global.nbs.getRate(c);
+      return (typeof r === 'number' && isFinite(r)) ? r : null;
+    }
+    return null;
+  }
+
+  /**
+   * Konvertuje iznos iz jedne u drugu valutu koristeći NBS.
+   * Ako NBS nije dostupan — vraća null.
+   */
+  function convertFromNBS(amount, fromCode, toCode) {
+    if (!global.nbs || !global.nbs.convert) return null;
+    return global.nbs.convert(amount, fromCode, toCode);
+  }
+
   global.currencies = {
     getAll: getAll,
     getByCode: getByCode,
@@ -127,6 +145,8 @@
     DEFAULT_CODE: DEFAULT_CODE,
     addBusinessDays: addBusinessDays,
     addBusinessDaysISO: addBusinessDaysISO,
-    isWeekend: isWeekend
+    isWeekend: isWeekend,
+    getRateFromNBS: getRateFromNBS,
+    convertFromNBS: convertFromNBS
   };
 })(window);
