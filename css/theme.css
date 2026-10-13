@@ -175,3 +175,15 @@ body,
     transition-duration: 0.001ms !important;
   }
 }
+/* =====================
+   LOGO "A" — veći
+   ===================== */
+.brand-logo {
+  width: 46px !important;
+  height: 46px !important;
+  font-size: 1.5rem !important;
+  border-radius: 14px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  background: linear-gradient(135deg, #8B7BF0 0%, #6C5CE7 100%) !important;
+}
