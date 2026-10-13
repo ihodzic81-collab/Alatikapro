@@ -2160,6 +2160,7 @@
     loadAll: loadAll,
     _state: state,
     openBillDetail: openBillDetail,
+    openBillForm: openBillForm,
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
     addCustomCategory: addCustomCategory,
