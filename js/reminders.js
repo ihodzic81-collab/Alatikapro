@@ -1019,12 +1019,11 @@
     parseBirthDate: parseBirthDate,
     currentAge: currentAge
   };
-})(window);
   global.reminders = {
     init: init,
     loadAll: loadAll,
     _state: state,
-    openForm: openForm,   /* <-- DODAJ OVO */
+    openForm: openForm,
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
     addCustomCategory: addCustomCategory,
@@ -1033,3 +1032,4 @@
     parseBirthDate: parseBirthDate,
     currentAge: currentAge
   };
+})(window);
