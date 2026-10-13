@@ -1,11 +1,10 @@
 /* =========================================================
    ALATIKA PRO — modules.css
-   Početna strana, kartice modula, vidžeti (3D glass + scroll),
-   logo sa malim PRO gore desno.
+   Početna strana, kartice modula, vidžeti, futer brzih akcija.
    ========================================================= */
 
 /* =====================
-   POČETNA — POZDRAV (pomeran nagore)
+   POZDRAV
    ===================== */
 .home-greeting {
   padding: 0 0 0.6rem;
@@ -29,11 +28,9 @@
 }
 
 /* =====================
-   SEKCIJE (smanjeni razmaci)
+   SEKCIJE
    ===================== */
-.home-section {
-  margin-top: 0.85rem;
-}
+.home-section { margin-top: 0.85rem; }
 
 .home-section-title {
   font-size: 0.78rem;
@@ -46,7 +43,7 @@
 }
 
 /* =====================
-   KARTICE MODULA — kompaktne
+   KARTICE MODULA — 3D GLASS, VEĆE IKONE
    ===================== */
 .home-cards {
   display: grid;
@@ -58,53 +55,108 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.65rem 0.3rem;
-  background-color: var(--color-surface);
-  border-radius: 14px;
-  border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  gap: 0.4rem;
+  padding: 0.85rem 0.4rem 0.75rem;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 255, 255, 0.72) 100%);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 1px 2px rgba(20, 22, 45, 0.05),
+    0 6px 16px rgba(20, 22, 45, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 0.12s ease, box-shadow 0.18s ease;
   cursor: pointer;
   text-align: center;
   font: inherit;
   color: inherit;
-  min-height: 84px;
+  min-height: 100px;
   position: relative;
   overflow: hidden;
 }
+
+.module-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,1), transparent);
+  pointer-events: none;
+}
+
 .module-card:active { transform: scale(0.96); }
-.module-card:hover { box-shadow: var(--shadow-md); }
+.module-card:hover {
+  box-shadow:
+    0 2px 4px rgba(20, 22, 45, 0.06),
+    0 10px 24px rgba(20, 22, 45, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+:root[data-theme="dark"] .module-card {
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg,
+    rgba(44, 46, 68, 0.92) 0%,
+    rgba(32, 34, 52, 0.72) 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 6px 16px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
 
 .module-card .mc-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
   color: #fff;
   flex: 0 0 auto;
+  position: relative;
+  transition: transform 0.15s ease;
 }
-.module-card .mc-icon.reminders { background-color: var(--color-module-reminders); }
-.module-card .mc-icon.bills     { background-color: var(--color-module-bills); }
-.module-card .mc-icon.items     { background-color: var(--color-module-items); }
-.module-card .mc-icon.money     { background-color: var(--color-module-money); }
+
+.module-card:hover .mc-icon { transform: translateY(-2px); }
+
+.module-card .mc-icon.reminders {
+  background: linear-gradient(135deg, #FBBF24, #F59E0B);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.module-card .mc-icon.bills {
+  background: linear-gradient(135deg, #60A5FA, #3B82F6);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.module-card .mc-icon.items {
+  background: linear-gradient(135deg, #A78BFA, #8B5CF6);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.module-card .mc-icon.money {
+  background: linear-gradient(135deg, #4ADE80, #22C55E);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.module-card .mc-icon svg {
+  width: 24px;
+  height: 24px;
+}
 
 .module-card .mc-title {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: var(--color-text);
-  line-height: 1.15;
+  line-height: 1.2;
   word-break: break-word;
 }
 
 .module-card .mc-lock {
   position: absolute;
-  top: 0.3rem;
-  right: 0.3rem;
-  width: 14px;
-  height: 14px;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 16px;
+  height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -112,7 +164,7 @@
 }
 
 /* =====================
-   VIDŽETI — 3D GLASS + HORIZONTALNI SKROL
+   VIDŽETI — 3D GLASS + SKROL
    ===================== */
 .home-widgets {
   display: flex;
@@ -123,27 +175,18 @@
 .home-widget {
   padding: 0.75rem 0.85rem;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   background: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.85) 0%,
-    rgba(255, 255, 255, 0.65) 100%);
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.7) 100%);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   box-shadow:
     0 1px 2px rgba(20, 22, 45, 0.04),
     0 4px 12px rgba(20, 22, 45, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
   position: relative;
   overflow: hidden;
-}
-
-.home-widget::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-  pointer-events: none;
 }
 
 :root[data-theme="dark"] .home-widget {
@@ -162,7 +205,6 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.55rem;
-  position: relative;
 }
 
 .hw-icon {
@@ -215,11 +257,7 @@
   color: var(--color-text-subtle);
   font-size: 1rem;
   font-weight: 700;
-  transition: background-color 0.15s ease;
 }
-.hw-more:hover { background-color: rgba(0,0,0,0.05); }
-
-:root[data-theme="dark"] .hw-more:hover { background-color: rgba(255,255,255,0.06); }
 
 .hw-pulse {
   flex: 0 0 auto;
@@ -236,7 +274,6 @@
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
 }
 
-/* Horizontalni skrol unutar vidžeta */
 .hw-scroll {
   display: flex;
   gap: 0.5rem;
@@ -317,9 +354,7 @@
   font-style: italic;
 }
 
-/* Budžet body */
 .hw-budget-body { padding: 0.15rem 0.1rem 0.05rem; }
-
 .hw-budget-bar-wrap {
   height: 10px;
   background-color: rgba(0,0,0,0.06);
@@ -328,17 +363,13 @@
   margin-bottom: 0.5rem;
 }
 :root[data-theme="dark"] .hw-budget-bar-wrap { background-color: rgba(255,255,255,0.08); }
-
 .hw-budget-bar {
   height: 100%;
   background: linear-gradient(90deg, #22C55E, #16A34A);
   border-radius: 999px;
   transition: width 0.4s ease;
 }
-.hw-budget-bar.over {
-  background: linear-gradient(90deg, #EF4444, #DC2626);
-}
-
+.hw-budget-bar.over { background: linear-gradient(90deg, #EF4444, #DC2626); }
 .hw-budget-info {
   display: flex;
   justify-content: space-between;
@@ -347,56 +378,11 @@
   color: var(--color-text);
   margin-bottom: 0.25rem;
 }
-
 .hw-budget-hint {
   font-size: 0.72rem;
   color: var(--color-text-muted);
   font-weight: 500;
   font-style: italic;
-}
-
-/* =====================
-   BRZE AKCIJE
-   ===================== */
-.home-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.quick-action {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.65rem 0.8rem;
-  background-color: var(--color-surface);
-  border-radius: 14px;
-  border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  transition: transform 0.08s ease;
-}
-.quick-action:active { transform: scale(0.97); }
-
-.quick-action .qa-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
-  background-color: var(--color-brand-soft);
-  color: var(--color-brand);
-}
-
-.quick-action .qa-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text);
 }
 
 /* =====================
@@ -450,7 +436,7 @@
 .brand-name {
   display: inline-flex;
   align-items: flex-start;
-  gap: 0.1em;
+  gap: 0.15em;
   line-height: 1;
   font-weight: 800;
 }
@@ -543,17 +529,81 @@
 .switch input:checked + .slider::before { transform: translateX(18px); }
 
 /* =====================
+   DONJA NAVIGACIJA — BRZE AKCIJE
+   ===================== */
+.bottom-nav {
+  display: grid !important;
+  grid-template-columns: repeat(5, 1fr) !important;
+}
+
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.2rem;
+  border-radius: 12px;
+  color: var(--color-text-subtle);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.05;
+  min-width: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-btn svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.nav-btn span {
+  font-size: 0.6rem;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.05;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.nav-btn.active {
+  color: var(--color-brand);
+}
+.nav-btn.active svg {
+  stroke: var(--color-brand);
+}
+
+/* Brze akcije u futeru imaju drugu boju */
+.nav-btn.nav-action[data-action="add-reminder"] svg { stroke: var(--color-module-reminders); }
+.nav-btn.nav-action[data-action="add-bill"] svg { stroke: var(--color-module-bills); }
+.nav-btn.nav-action[data-action="add-item"] svg { stroke: var(--color-module-items); }
+.nav-btn.nav-action[data-action="add-money"] svg { stroke: var(--color-module-money); }
+
+.nav-btn.nav-action:active {
+  background-color: var(--color-surface-2);
+}
+
+/* =====================
    MOBILE
    ===================== */
 @media (max-width: 360px) {
   .home-cards { gap: 0.35rem; }
-  .module-card { padding: 0.55rem 0.25rem; min-height: 78px; }
-  .module-card .mc-icon { width: 30px; height: 30px; }
-  .module-card .mc-title { font-size: 0.66rem; }
+  .module-card { padding: 0.7rem 0.3rem 0.65rem; min-height: 92px; }
+  .module-card .mc-icon { width: 40px; height: 40px; }
+  .module-card .mc-icon svg { width: 20px; height: 20px; }
+  .module-card .mc-title { font-size: 0.68rem; }
   .home-widget { padding: 0.6rem 0.7rem; border-radius: 14px; }
   .hw-icon { width: 30px; height: 30px; }
   .hw-label { font-size: 0.68rem; }
   .hw-chip { min-width: 82px; padding: 0.45rem 0.55rem; }
   .hw-chip-title { font-size: 0.72rem; }
   .hw-chip-amount { font-size: 0.68rem; }
+
+  .nav-btn { padding: 0.3rem 0.15rem; }
+  .nav-btn svg { width: 20px; height: 20px; }
+  .nav-btn span { font-size: 0.55rem; }
 }
