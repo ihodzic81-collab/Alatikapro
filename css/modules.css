@@ -1,13 +1,13 @@
 /* =========================================================
    ALATIKA PRO — modules.css
-   Početna strana, kartice modula, zaglavlja modula, toast.
+   Početna strana, kartice modula, vidžeti, zaglavlja modula, toast.
    ========================================================= */
 
 /* =====================
    POČETNA — POZDRAV
    ===================== */
 .home-greeting {
-  padding: 0.25rem 0 0.75rem;
+  padding: 0.25rem 0 1rem;
 }
 
 .home-hello {
@@ -39,103 +39,36 @@
 }
 
 /* =====================
-   DANAŠNJI PREGLED
-   ===================== */
-.home-today {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.today-card {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background-color: var(--color-surface);
-  border-radius: 14px;
-  border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.08s ease;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  font: inherit;
-  color: inherit;
-}
-
-.today-card:active {
-  transform: scale(0.985);
-}
-
-.today-icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background-color: var(--color-surface-2);
-  color: var(--color-brand);
-}
-
-.today-icon.color-amber  { background-color: rgba(245, 158, 11, 0.12);  color: var(--color-module-reminders); }
-.today-icon.color-blue   { background-color: rgba(59, 130, 246, 0.12);  color: var(--color-module-bills); }
-.today-icon.color-purple { background-color: rgba(139, 92, 246, 0.12);  color: var(--color-module-items); }
-.today-icon.color-green  { background-color: rgba(34, 197, 94, 0.12);   color: var(--color-module-money); }
-
-.today-text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.today-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.today-sub {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  margin-top: 0.1rem;
-}
-
-/* =====================
-   ČETIRI KARTICE MODULA
+   ČETIRI KARTICE MODULA — KOMPAKTNE (u jednom redu)
    ===================== */
 .home-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
 }
 
 .module-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 1rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0.4rem;
   background-color: var(--color-surface);
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-sm);
   transition: transform 0.1s ease, box-shadow 0.15s ease;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
   color: inherit;
-  min-height: 120px;
+  min-height: 92px;
   position: relative;
   overflow: hidden;
 }
 
 .module-card:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .module-card:hover {
@@ -146,11 +79,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
   color: #fff;
-  margin-bottom: 0.25rem;
+  flex: 0 0 auto;
 }
 
 .module-card .mc-icon.reminders { background-color: var(--color-module-reminders); }
@@ -159,27 +92,139 @@
 .module-card .mc-icon.money     { background-color: var(--color-module-money); }
 
 .module-card .mc-title {
-  font-size: 0.98rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--color-text);
+  line-height: 1.2;
+  word-break: break-word;
 }
 
-.module-card .mc-sub {
+.module-card .mc-lock {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-subtle);
+}
+
+/* Starija (ne-kompaktna) varijanta — zadržana zbog kompatibilnosti */
+.module-card:not(.mc-compact) {
+  align-items: flex-start;
+  text-align: left;
+  min-height: 120px;
+  padding: 1rem;
+  gap: 0.5rem;
+}
+
+.module-card:not(.mc-compact) .mc-sub {
   font-size: 0.78rem;
   color: var(--color-text-muted);
   line-height: 1.3;
 }
 
-.module-card .mc-lock {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  width: 22px;
-  height: 22px;
+/* =====================
+   VIDŽETI — 4 interaktivna
+   ===================== */
+.home-widgets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.home-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  min-height: 74px;
+  width: 100%;
+}
+
+.home-widget:active {
+  transform: scale(0.98);
+}
+
+.home-widget:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.hw-icon {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
+.hw-icon-reminders {
+  background-color: rgba(245, 158, 11, 0.14);
+  color: var(--color-module-reminders);
+}
+
+.hw-icon-bills {
+  background-color: rgba(59, 130, 246, 0.14);
+  color: var(--color-module-bills);
+}
+
+.hw-icon-money {
+  background-color: rgba(34, 197, 94, 0.14);
+  color: var(--color-module-money);
+}
+
+.hw-icon-rates {
+  background-color: rgba(108, 92, 231, 0.14);
+  color: var(--color-brand);
+}
+
+.hw-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.hw-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hw-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.hw-arrow {
+  flex: 0 0 auto;
   color: var(--color-text-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* =====================
@@ -230,15 +275,7 @@
 }
 
 /* =====================
-   KURSNA LISTA (placeholder do Sesije 6)
-   ===================== */
-.rates-card {
-  text-align: center;
-  padding: 1.25rem 1rem;
-}
-
-/* =====================
-   MODULE HEADER (Podsetnici, Računi, ...)
+   MODULE HEADER
    ===================== */
 .module-header {
   display: flex;
@@ -353,7 +390,6 @@
 .lock-row-label .dot.items     { background-color: var(--color-module-items); }
 .lock-row-label .dot.money     { background-color: var(--color-module-money); }
 
-/* Prekidač (switch) */
 .switch {
   position: relative;
   display: inline-block;
@@ -399,52 +435,38 @@
 }
 
 /* =====================
-   ZAKLJUČANA KARTICA (prekrivač)
-   ===================== */
-.locked-view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 0.75rem;
-  padding: 3rem 1.5rem;
-}
-
-.locked-view .locked-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  background-color: var(--color-surface-2);
-  color: var(--color-text-subtle);
-}
-
-.locked-view h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.locked-view p {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  max-width: 30ch;
-}
-
-/* =====================
    MALE PRILAGODBE
    ===================== */
 @media (max-width: 360px) {
   .home-cards {
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
   .module-card {
-    padding: 0.85rem;
-    min-height: 108px;
+    padding: 0.6rem 0.3rem;
+    min-height: 84px;
   }
-  .module-card .mc-title { font-size: 0.9rem; }
-  .module-card .mc-sub { font-size: 0.72rem; }
+  .module-card .mc-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .module-card .mc-title {
+    font-size: 0.7rem;
+  }
+  .home-widgets {
+    gap: 0.45rem;
+  }
+  .home-widget {
+    padding: 0.65rem 0.7rem;
+    min-height: 68px;
+  }
+  .hw-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .hw-label {
+    font-size: 0.66rem;
+  }
+  .hw-value {
+    font-size: 0.76rem;
+  }
 }
