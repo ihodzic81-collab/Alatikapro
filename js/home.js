@@ -1,6 +1,7 @@
 /* =========================================================
    ALATIKA PRO — home.js
-   Početna sa vidžetima (uklj. funkcionalan mini konverter).
+   Početna sa vidžetima + mini konverter + refresh.
+   Futer brze akcije.
    ========================================================= */
 
 (function (global) {
@@ -341,8 +342,8 @@
     parent.appendChild(card);
   }
 
-  /* --- Kursna lista sa MINI KONVERTEROM --- */
-   function renderRatesWidget(parent) {
+  /* --- Kursna lista sa refresh dugmetom --- */
+  function renderRatesWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
 
@@ -352,7 +353,14 @@
       '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>',
       '  </span>',
       '  <span class="hw-label">' + tr('home.rates', 'Kursna lista') + '</span>',
-      '  <button type="button" class="hw-more" data-open-converter aria-label="' + tr('rates.openConverter', 'Otvori konverter') + '">→</button>',
+      '  <button type="button" class="hw-refresh" id="hwRatesRefresh" aria-label="' + tr('rates.refresh', 'Osveži') + '">',
+      '    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">',
+      '      <polyline points="23 4 23 10 17 10"></polyline>',
+      '      <polyline points="1 20 1 14 7 14"></polyline>',
+      '      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+      '    </svg>',
+      '  </button>',
+      '  <button type="button" class="hw-more" data-open-converter>→</button>',
       '</div>',
       '<div class="hw-converter" id="hwConverter">',
       '  <input type="text" inputmode="decimal" class="hw-conv-input" id="hwConvAmount" value="100" />',
@@ -366,7 +374,8 @@
       '  <div class="hw-conv-result-label">' + tr('conv.result', 'Rezultat') + '</div>',
       '  <div class="hw-conv-result-value" id="hwConvResultValue">—</div>',
       '</div>',
-      '<div class="hw-conv-rate" id="hwConvRate"></div>'
+      '<div class="hw-conv-rate" id="hwConvRate"></div>',
+      '<div class="hw-conv-updated" id="hwConvUpdated"></div>'
     ].join('');
 
     parent.appendChild(card);
@@ -386,8 +395,33 @@
     const amountInput = card.querySelector('#hwConvAmount');
     const resultValue = card.querySelector('#hwConvResultValue');
     const rateEl = card.querySelector('#hwConvRate');
+    const updatedEl = card.querySelector('#hwConvUpdated');
     const swapBtn = card.querySelector('#hwConvSwap');
+    const refreshBtn = card.querySelector('#hwRatesRefresh');
     const openBtn = card.querySelector('[data-open-converter]');
+
+    function formatTimeAgo(ts) {
+      if (!ts) return '';
+      const diff = Date.now() - ts;
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return tr('rates.justNow', 'upravo sada');
+      if (mins < 60) return tr('rates.minAgo', 'pre') + ' ' + mins + ' ' + tr('rates.min', 'min');
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return tr('rates.hourAgo', 'pre') + ' ' + hours + ' ' + tr('rates.hours', 'h');
+      const days = Math.floor(hours / 24);
+      return tr('rates.dayAgo', 'pre') + ' ' + days + ' ' + tr('rates.days', 'd');
+    }
+
+    function updateUpdatedInfo() {
+      if (!updatedEl) return;
+      const updated = global.nbs.getUpdatedAt();
+      const source = global.nbs.getSource ? global.nbs.getSource() : '';
+      if (!updated) { updatedEl.textContent = ''; return; }
+      let txt = tr('rates.updated', 'Ažurirano') + ': ' + formatTimeAgo(updated);
+      if (source === 'base') txt += ' · ' + tr('rates.offline', 'offline');
+      else if (source === 'cache') txt += ' · ' + tr('rates.fromCache', 'iz keša');
+      updatedEl.textContent = txt;
+    }
 
     function updateConversion() {
       const amount = global.utils.parseAmount(amountInput.value);
@@ -402,7 +436,10 @@
 
       if (!global.nbs || !global.nbs.hasRates()) {
         if (global.nbs && global.nbs.getRates) {
-          global.nbs.getRates().then(updateConversion).catch(function () {
+          global.nbs.getRates().then(function () {
+            updateConversion();
+            updateUpdatedInfo();
+          }).catch(function () {
             resultValue.textContent = '—';
             rateEl.textContent = tr('rates.unavailable', 'Kurs nije dostupan.');
           });
@@ -443,6 +480,7 @@
       const date = global.nbs.getDate();
       if (date) rateText += ' · ' + date;
       rateEl.textContent = rateText;
+      updateUpdatedInfo();
     }
 
     amountInput.addEventListener('input', global.utils.debounce(updateConversion, 250));
@@ -459,6 +497,36 @@
       updateConversion();
     });
 
+    refreshBtn.addEventListener('click', function () {
+      if (refreshBtn.classList.contains('loading')) return;
+      refreshBtn.classList.add('loading');
+      if (global.home && global.home.showToast) {
+        global.home.showToast(tr('rates.refreshing', 'Osvežavam kurs...'));
+      }
+      global.nbs.getRates(true).then(function () {
+        updateConversion();
+        updateUpdatedInfo();
+        refreshBtn.classList.remove('loading');
+        refreshBtn.classList.add('success');
+        setTimeout(function () { refreshBtn.classList.remove('success'); }, 1200);
+        const source = global.nbs.getSource ? global.nbs.getSource() : '';
+        if (source === 'api') {
+          if (global.home && global.home.showToast) {
+            global.home.showToast(tr('rates.refreshed', '✓ Kursna lista osvežena'));
+          }
+        } else {
+          if (global.home && global.home.showToast) {
+            global.home.showToast(tr('rates.refreshedOffline', 'Kurs osvežen (offline)'));
+          }
+        }
+      }).catch(function () {
+        refreshBtn.classList.remove('loading');
+        if (global.home && global.home.showToast) {
+          global.home.showToast(tr('rates.refreshFailed', 'Ne mogu da osvežim — koristi se keš'));
+        }
+      });
+    });
+
     openBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (global.converter && global.converter.openModal) {
@@ -468,19 +536,25 @@
       }
     });
 
-    /* Odmah učitaj kurseve i pozovi konverziju */
     if (global.nbs) {
-      global.nbs.getRates().then(updateConversion).catch(function () {
-        /* Ako padne API, koristi hardkodovano */
-        setTimeout(updateConversion, 500);
+      global.nbs.getRates().then(function () {
+        updateConversion();
+        updateUpdatedInfo();
+      }).catch(function () {
+        setTimeout(function () {
+          updateConversion();
+          updateUpdatedInfo();
+        }, 500);
       });
     }
+
+    const interval = setInterval(updateUpdatedInfo, 30000);
+    card.dataset.intervalId = String(interval);
   }
 
   /* ---------- BRZE AKCIJE ---------- */
 
   function handleQuickAction(key) {
-    /* Otvori formu direktno, bez ulaska u karticu */
     if (key === 'add-reminder') {
       if (global.reminders && global.reminders.openForm) {
         global.reminders.openForm(null);
@@ -550,6 +624,7 @@
       btn.dataset.bound = '1';
       btn.addEventListener('click', function (e) {
         e.preventDefault();
+        e.stopPropagation();
         handleQuickAction(btn.getAttribute('data-action'));
       });
     });
