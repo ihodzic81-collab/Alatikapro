@@ -246,7 +246,7 @@
     toggleFabVisibility();
   }
 
-    function buildHeader() {
+      function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -282,7 +282,6 @@
 
     return header;
   }
-
   function showHelp() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
