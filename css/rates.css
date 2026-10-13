@@ -564,3 +564,106 @@
     font-size: 0.95rem;
   }
 }
+/* Mini konverter u vidžetu */
+.hw-converter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.hw-conv-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  text-align: right;
+}
+
+.hw-conv-input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-ring);
+}
+
+.hw-conv-cur {
+  flex: 0 0 auto;
+  min-width: 78px;
+  padding: 0.55rem 1.4rem 0.55rem 0.6rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E7088' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.35rem center;
+  background-size: 14px;
+}
+
+.hw-conv-swap {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--color-surface-2);
+  color: var(--color-brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 0;
+  transition: transform 0.3s ease, background-color 0.15s ease;
+}
+
+.hw-conv-swap:hover {
+  background: var(--color-brand-soft);
+}
+
+.hw-conv-swap.rotating {
+  transform: rotate(180deg);
+}
+
+.hw-conv-result {
+  padding: 0.6rem 0.85rem;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.10), rgba(139, 92, 246, 0.05));
+  border-radius: 11px;
+  border: 1.5px solid rgba(108, 92, 231, 0.2);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.hw-conv-result-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hw-conv-result-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-brand);
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
+
+.hw-conv-rate {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-style: italic;
+  min-height: 1em;
+}
