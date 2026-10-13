@@ -1249,7 +1249,7 @@
     fab.style.display = (route === 'money' && state.view === 'list') ? '' : 'none';
   }
 
-  function buildHeader() {
+    function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -1265,14 +1265,22 @@
       '    <p class="text-muted text-sm">' + t('money.subtitle', 'Prihodi, rashodi i budžet.') + '</p>',
       '  </div>',
       '</div>',
-      '<button type="button" class="icon-btn" data-module-lock="money" title="' + t('pin.lock', 'Zaključaj') + '">',
-      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
-      '</button>'
+      '<div class="header-actions-inline">',
+      '  <button type="button" class="icon-btn" id="moneyHelp" aria-label="' + t('common.help', 'Pomoć') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+      '  </button>',
+      '  <button type="button" class="icon-btn" data-module-lock="money" title="' + t('pin.lock', 'Zaključaj') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
+      '  </button>',
+      '</div>'
     ].join('');
 
-    const backBtn = header.querySelector('#moneyBack');
-    backBtn.addEventListener('click', function () {
+    header.querySelector('#moneyBack').addEventListener('click', function () {
       global.router.navigate('home');
+    });
+
+    header.querySelector('#moneyHelp').addEventListener('click', function () {
+      if (global.help) global.help.open('money');
     });
 
     return header;
