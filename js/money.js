@@ -1332,6 +1332,7 @@
   global.money = {
     init: init,
     loadAll: loadAll,
+    openTransactionForm: openTransactionForm,
     upsertExpenseFromBill: upsertExpenseFromBill,
     removeExpenseByBillId: removeExpenseByBillId,
     INCOME_CATEGORIES: INCOME_CATEGORIES.slice(),
