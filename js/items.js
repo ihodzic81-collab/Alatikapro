@@ -889,7 +889,7 @@
 
   /* ---------- HEADER ---------- */
 
-  function buildHeader() {
+   function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -905,14 +905,22 @@
       '    <p class="text-muted text-sm">' + t('items.subtitle', 'Važni dokumenti uvek pri ruci.') + '</p>',
       '  </div>',
       '</div>',
-      '<button type="button" class="icon-btn" data-module-lock="items" title="' + t('pin.lock', 'Zaključaj') + '">',
-      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
-      '</button>'
+      '<div class="header-actions-inline">',
+      '  <button type="button" class="icon-btn" id="itemsHelp" aria-label="' + t('common.help', 'Pomoć') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+      '  </button>',
+      '  <button type="button" class="icon-btn" data-module-lock="items" title="' + t('pin.lock', 'Zaključaj') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
+      '  </button>',
+      '</div>'
     ].join('');
 
-    const backBtn = header.querySelector('#itemsBack');
-    backBtn.addEventListener('click', function () {
+    header.querySelector('#itemsBack').addEventListener('click', function () {
       global.router.navigate('home');
+    });
+
+    header.querySelector('#itemsHelp').addEventListener('click', function () {
+      if (global.help) global.help.open('items');
     });
 
     return header;
