@@ -1,9 +1,6 @@
 /* =========================================================
    ALATIKA PRO — pin-ui.js
-   Vizuelni deo PIN zaštite:
-   - Ekran za unos PIN-a (preko celog ekrana)
-   - Modal za postavljanje/uklanjanje PIN-a
-   - Modal za zaključavanje kartica
+   PIN ekran sa automatskom proverom.
    ========================================================= */
 
 (function (global) {
@@ -15,14 +12,12 @@
     onCancel: null,
     title: '',
     subtitle: '',
-    mode: 'unlock' /* unlock | set | change-old | change-new | change-confirm */
+    mode: 'unlock'
   };
 
   function tr(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
   }
-
-  /* ---------- KREIRANJE OVERLAY EKRANA ---------- */
 
   function buildOverlay() {
     const overlay = document.createElement('div');
@@ -63,10 +58,10 @@
     return overlay;
   }
 
-  /* ---------- PRIKAZ ---------- */
-
   let currentPin = '';
   let firstPin = null;
+  let newPin = null;
+  let processing = false;
 
   function updateDots() {
     const dots = state.overlay.querySelectorAll('.pin-dot');
@@ -85,11 +80,13 @@
     currentPin = '';
     updateDots();
     showError('');
+    processing = false;
   }
 
   function closeOverlay() {
     if (!state.overlay) return;
     state.overlay.classList.remove('show');
+    document.removeEventListener('keydown', onKeyDown);
     setTimeout(function () {
       if (state.overlay && state.overlay.parentNode) {
         state.overlay.parentNode.removeChild(state.overlay);
@@ -97,6 +94,8 @@
       state.overlay = null;
       currentPin = '';
       firstPin = null;
+      newPin = null;
+      processing = false;
     }, 180);
   }
 
@@ -140,11 +139,9 @@
 
   function onKeyDown(e) {
     if (!state.overlay) return;
-    if (e.key >= '0' && e.key <= '9') {
-      handleKey(e.key);
-    } else if (e.key === 'Backspace') {
-      handleKey('back');
-    } else if (e.key === 'Escape') {
+    if (e.key >= '0' && e.key <= '9') handleKey(e.key);
+    else if (e.key === 'Backspace') handleKey('back');
+    else if (e.key === 'Escape') {
       const cb = state.onCancel;
       closeOverlay();
       if (cb) cb();
@@ -153,6 +150,8 @@
 
   function handleKey(key) {
     if (!state.overlay) return;
+    if (processing) return;
+
     if (key === 'back') {
       currentPin = currentPin.slice(0, -1);
       updateDots();
@@ -163,7 +162,9 @@
     currentPin += key;
     updateDots();
     if (currentPin.length === 4) {
-      setTimeout(processPin, 180);
+      /* Odmah procesuiraj — bez čekanja potvrde */
+      processing = true;
+      setTimeout(processPin, 120);
     }
   }
 
@@ -171,12 +172,13 @@
     if (!state.overlay) return;
     const pin = currentPin;
 
+    /* UNLOCK */
     if (state.mode === 'unlock') {
       global.pin.verifyPin(pin).then(function (ok) {
+        if (!state.overlay) return;
         if (ok) {
           const cb = state.onSuccess;
           closeOverlay();
-          document.removeEventListener('keydown', onKeyDown);
           if (cb) cb();
         } else {
           const secs = global.pin.getRemainingLockSeconds();
@@ -185,12 +187,15 @@
           } else {
             showError(tr('pin.wrong', 'Pogrešan PIN. Pokušaj ponovo.'));
           }
+          /* Vibriraj ako je podržano */
+          if (navigator.vibrate) navigator.vibrate(200);
           resetInput();
         }
       });
       return;
     }
 
+    /* SET — prvi unos */
     if (state.mode === 'set') {
       if (!firstPin) {
         firstPin = pin;
@@ -198,21 +203,23 @@
         updateDots();
         state.overlay.querySelector('#pinTitle').textContent = tr('pin.confirm', 'Potvrdi PIN');
         state.overlay.querySelector('#pinSubtitle').textContent = tr('pin.confirmSub', 'Ponovo unesi isti PIN.');
+        processing = false;
         return;
       }
       if (firstPin !== pin) {
         showError(tr('pin.mismatch', 'PIN-ovi se ne poklapaju.'));
+        if (navigator.vibrate) navigator.vibrate(200);
         firstPin = null;
         currentPin = '';
         updateDots();
         state.overlay.querySelector('#pinTitle').textContent = tr('pin.set', 'Postavi PIN');
         state.overlay.querySelector('#pinSubtitle').textContent = '';
+        processing = false;
         return;
       }
       global.pin.setPin(pin).then(function () {
         const cb = state.onSuccess;
         closeOverlay();
-        document.removeEventListener('keydown', onKeyDown);
         if (cb) cb();
       }).catch(function (err) {
         showError(err.message || 'Greška.');
@@ -222,56 +229,59 @@
       return;
     }
 
+    /* CHANGE — stari PIN */
     if (state.mode === 'change') {
-      if (!firstPin) {
-        global.pin.verifyPin(pin).then(function (ok) {
-          if (!ok) {
-            showError(tr('pin.wrong', 'Pogrešan PIN.'));
-            resetInput();
-            return;
-          }
-          firstPin = pin;
-          currentPin = '';
-          updateDots();
-          state.overlay.querySelector('#pinTitle').textContent = tr('pin.new', 'Novi PIN');
-          state.overlay.querySelector('#pinSubtitle').textContent = '';
-          state.mode = 'change-new';
-        });
-        return;
-      }
+      global.pin.verifyPin(pin).then(function (ok) {
+        if (!state.overlay) return;
+        if (!ok) {
+          showError(tr('pin.wrong', 'Pogrešan PIN.'));
+          if (navigator.vibrate) navigator.vibrate(200);
+          resetInput();
+          return;
+        }
+        firstPin = pin;
+        currentPin = '';
+        updateDots();
+        state.overlay.querySelector('#pinTitle').textContent = tr('pin.new', 'Novi PIN');
+        state.overlay.querySelector('#pinSubtitle').textContent = '';
+        state.mode = 'change-new';
+        processing = false;
+      });
+      return;
     }
 
+    /* CHANGE-NEW */
     if (state.mode === 'change-new') {
-      firstPin = firstPin; /* stari pin */
-      state.newPin = pin;
+      newPin = pin;
       currentPin = '';
       updateDots();
       state.overlay.querySelector('#pinTitle').textContent = tr('pin.confirm', 'Potvrdi PIN');
       state.overlay.querySelector('#pinSubtitle').textContent = tr('pin.confirmSub', 'Ponovo unesi isti PIN.');
       state.mode = 'change-confirm';
+      processing = false;
       return;
     }
 
+    /* CHANGE-CONFIRM */
     if (state.mode === 'change-confirm') {
-      if (state.newPin !== pin) {
+      if (newPin !== pin) {
         showError(tr('pin.mismatch', 'PIN-ovi se ne poklapaju.'));
+        if (navigator.vibrate) navigator.vibrate(200);
         currentPin = '';
         updateDots();
         state.mode = 'change-new';
         state.overlay.querySelector('#pinTitle').textContent = tr('pin.new', 'Novi PIN');
+        processing = false;
         return;
       }
       global.pin.setPin(pin).then(function () {
         const cb = state.onSuccess;
         closeOverlay();
-        document.removeEventListener('keydown', onKeyDown);
         if (cb) cb();
       });
       return;
     }
   }
-
-  /* ---------- JAVNE FUNKCIJE ---------- */
 
   function promptUnlock(moduleName, onSuccess) {
     const titles = {
