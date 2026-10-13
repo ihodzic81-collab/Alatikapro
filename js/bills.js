@@ -1,12 +1,10 @@
 /* =========================================================
    ALATIKA PRO — bills.js
-   Modul Računi — kompletan:
-   - Tab RAČUNI: prikaz iz drugih meseci, plaćanje jednim klikom
-   - Tab RATE: ukupan iznos → podeli na rate, "Plati ratu"
-   - Tab ČEKOVI: brza realizacija, prikaz iz drugih meseci
-   - Pametni datumi (DD / MM / GGGG)
-   - Latinica za mesece (ručno)
-   - Povezivanje sa modulom Novac (plaćen račun → rashod)
+   Modul Računi — kompletan.
+   - Back dugme u headeru
+   - Brzo plaćanje direktno iz liste
+   - Povezivanje sa modulom Novac
+   - Help ikonica
    ========================================================= */
 
 (function (global) {
@@ -101,7 +99,6 @@
     const y = Number(parts[0]);
     const m = Number(parts[1]) - 1;
     if (isNaN(y) || m < 0 || m > 11) return monthISO;
-
     const months = lang() === 'en' ? MONTHS_EN : MONTHS_SR;
     const name = months[m];
     return name.charAt(0).toUpperCase() + name.slice(1) + ' ' + y;
@@ -118,10 +115,7 @@
   function formatAmount(value) {
     const n = typeof value === 'number' ? value : parseFloat(value) || 0;
     const locale = lang() === 'en' ? 'en-GB' : 'sr-RS';
-    return n.toLocaleString(locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function formatInt(value) {
@@ -161,8 +155,7 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
         canvas.toBlob(function (blob) {
-          if (blob) resolve(blob);
-          else resolve(file);
+          if (blob) resolve(blob); else resolve(file);
         }, 'image/jpeg', 0.85);
       };
       img.onerror = function () {
@@ -185,29 +178,17 @@
         blob: optimized,
         createdAt: now
       };
-      return global.storage.save(STORE_FILES, record).then(function () {
-        return id;
-      });
+      return global.storage.save(STORE_FILES, record).then(function () { return id; });
     });
   }
 
-  function loadFile(fileId) {
-    return global.storage.load(STORE_FILES, fileId);
-  }
-
-  function deleteFile(fileId) {
-    if (!fileId) return Promise.resolve();
-    return global.storage.delete(STORE_FILES, fileId);
-  }
+  function loadFile(fileId) { return global.storage.load(STORE_FILES, fileId); }
+  function deleteFile(fileId) { if (!fileId) return Promise.resolve(); return global.storage.delete(STORE_FILES, fileId); }
 
   function getFileURL(fileId) {
     return loadFile(fileId).then(function (rec) {
       if (!rec || !rec.blob) return null;
-      return {
-        url: URL.createObjectURL(rec.blob),
-        type: rec.type,
-        name: rec.name
-      };
+      return { url: URL.createObjectURL(rec.blob), type: rec.type, name: rec.name };
     });
   }
 
@@ -259,9 +240,7 @@
     });
 
     out.sort(function (a, b) {
-      if (a.__otherMonth !== b.__otherMonth) {
-        return a.__otherMonth ? 1 : -1;
-      }
+      if (a.__otherMonth !== b.__otherMonth) return a.__otherMonth ? 1 : -1;
       return (b.dueDate || '').localeCompare(a.dueDate || '');
     });
 
@@ -292,9 +271,7 @@
     });
 
     return {
-      total: total,
-      paid: paid,
-      pending: pending,
+      total: total, paid: paid, pending: pending,
       paidByCurrency: paidByCurrency,
       pendingByCurrency: pendingByCurrency
     };
@@ -335,26 +312,16 @@
     return 'active';
   }
 
-  function getCheckStatus(check) {
-    if (check.realized) return 'realized';
-    if (check.realizeDate && check.realizeDate < global.utils.todayISO()) return 'pending-realize';
-    return 'pending';
-  }
-
   function computeCheckSummary() {
     const monthItems = state.month
-      ? state.checks.filter(function (c) {
-          return (c.realizeDate || '').slice(0, 7) === state.month;
-        })
+      ? state.checks.filter(function (c) { return (c.realizeDate || '').slice(0, 7) === state.month; })
       : state.checks;
 
     const total = monthItems.length;
     const realized = monthItems.filter(function (c) { return c.realized; }).length;
     const pending = total - realized;
 
-    let totalAmount = 0;
-    let realizedAmount = 0;
-    let pendingAmount = 0;
+    let totalAmount = 0, realizedAmount = 0, pendingAmount = 0;
     monthItems.forEach(function (c) {
       const amt = Number(c.amount) || 0;
       totalAmount += amt;
@@ -363,12 +330,8 @@
     });
 
     return {
-      total: total,
-      realized: realized,
-      pending: pending,
-      totalAmount: totalAmount,
-      realizedAmount: realizedAmount,
-      pendingAmount: pendingAmount
+      total: total, realized: realized, pending: pending,
+      totalAmount: totalAmount, realizedAmount: realizedAmount, pendingAmount: pendingAmount
     };
   }
 
@@ -394,35 +357,19 @@
     return Promise.all(promises).then(function () { return changed; });
   }
 
-  /* =========================================================
-     INTEGRACIJA SA NOVCEM
-     ========================================================= */
+  /* ---------- INTEGRACIJA SA NOVCEM ---------- */
 
-  /**
-   * Kreira ili ažurira rashod u modulu Novac na osnovu plaćenog računa.
-   * Ako je račun već imao povezanu transakciju (linkedTxId), ažurira je.
-   * Inače kreira novu.
-   */
   function syncBillToMoney(bill) {
-    if (!global.money || !global.money.upsertExpenseFromBill) {
-      return Promise.resolve();
-    }
+    if (!global.money || !global.money.upsertExpenseFromBill) return Promise.resolve();
     return global.money.upsertExpenseFromBill(bill);
   }
 
-  /**
-   * Briše povezanu transakciju iz modula Novac.
-   */
   function removeBillFromMoney(billId) {
-    if (!global.money || !global.money.removeExpenseByBillId) {
-      return Promise.resolve();
-    }
+    if (!global.money || !global.money.removeExpenseByBillId) return Promise.resolve();
     return global.money.removeExpenseByBillId(billId);
   }
 
-  /* =========================================================
-     RENDER — GLAVNI
-     ========================================================= */
+  /* ---------- RENDER ---------- */
 
   function renderInto(view) {
     let header = view.querySelector('.module-header');
@@ -436,18 +383,12 @@
 
     const existingTabs = view.querySelector('.bills-tabs');
     if (existingTabs) {
-      while (existingTabs.nextSibling) {
-        view.removeChild(existingTabs.nextSibling);
-      }
+      while (existingTabs.nextSibling) view.removeChild(existingTabs.nextSibling);
     }
 
-    if (state.view === 'bills') {
-      renderBillsTab(view);
-    } else if (state.view === 'rates') {
-      renderRatesTab(view);
-    } else {
-      renderChecksTab(view);
-    }
+    if (state.view === 'bills') renderBillsTab(view);
+    else if (state.view === 'rates') renderRatesTab(view);
+    else renderChecksTab(view);
 
     toggleFabVisibility();
   }
@@ -477,10 +418,6 @@
     view.appendChild(tabs);
   }
 
-  /* =========================================================
-     TAB 1 — RAČUNI
-     ========================================================= */
-
   function renderBillsTab(view) {
     buildMonthNav(view);
     buildBillsSummary(view);
@@ -499,11 +436,11 @@
     const nav = document.createElement('div');
     nav.className = 'month-nav';
     nav.innerHTML = [
-      '<button type="button" class="month-nav-btn" data-dir="-1" aria-label="Prethodni mesec">',
+      '<button type="button" class="month-nav-btn" data-dir="-1" aria-label="' + t('common.prev', 'Prethodni') + '">',
       '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>',
       '</button>',
       '<span class="month-nav-label">' + monthLabel(state.month) + '</span>',
-      '<button type="button" class="month-nav-btn" data-dir="1" aria-label="Sledeći mesec">',
+      '<button type="button" class="month-nav-btn" data-dir="1" aria-label="' + t('common.next', 'Sledeći') + '">',
       '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
       '</button>'
     ].join('');
@@ -545,10 +482,7 @@
     const totalsBox = document.createElement('div');
     totalsBox.className = 'bills-totals';
 
-    const paidKeys = Object.keys(s.paidByCurrency);
-    const pendingKeys = Object.keys(s.pendingByCurrency);
-
-    paidKeys.forEach(function (cur) {
+    Object.keys(s.paidByCurrency).forEach(function (cur) {
       const chip = document.createElement('span');
       chip.className = 'bills-total-chip';
       chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
@@ -557,7 +491,7 @@
       totalsBox.appendChild(chip);
     });
 
-    pendingKeys.forEach(function (cur) {
+    Object.keys(s.pendingByCurrency).forEach(function (cur) {
       const chip = document.createElement('span');
       chip.className = 'bills-total-chip';
       chip.innerHTML = '<span class="flag">' + global.currencies.getFlag(cur) + '</span>' +
@@ -566,9 +500,7 @@
       totalsBox.appendChild(chip);
     });
 
-    if (totalsBox.children.length > 0) {
-      view.appendChild(totalsBox);
-    }
+    if (totalsBox.children.length > 0) view.appendChild(totalsBox);
   }
 
   function buildBillsFilters(view) {
@@ -608,17 +540,15 @@
     view.appendChild(search);
 
     const inp = search.querySelector('#billsSearchInput');
-    const debounced = global.utils.debounce(function () {
+    inp.addEventListener('input', global.utils.debounce(function () {
       state.search = inp.value.trim();
       const listWrap = view.querySelector('.bills-list');
       if (listWrap) renderBillsList(listWrap);
-    }, 180);
-    inp.addEventListener('input', debounced);
+    }, 180));
   }
 
   function renderBillsList(listWrap) {
     listWrap.innerHTML = '';
-
     const filtered = applyFilter(state.items);
 
     if (filtered.length === 0) {
@@ -638,21 +568,14 @@
     const currentItems = filtered.filter(function (b) { return !b.__otherMonth; });
     const otherItems = filtered.filter(function (b) { return b.__otherMonth; });
 
-    if (currentItems.length > 0) {
-      currentItems.forEach(function (b) {
-        listWrap.appendChild(buildBillItem(b));
-      });
-    }
+    currentItems.forEach(function (b) { listWrap.appendChild(buildBillItem(b)); });
 
     if (otherItems.length > 0) {
       const divider = document.createElement('div');
       divider.className = 'other-month-divider';
       divider.innerHTML = '<span>' + t('bills.otherMonths', 'Iz drugih meseci') + '</span>';
       listWrap.appendChild(divider);
-
-      otherItems.forEach(function (b) {
-        listWrap.appendChild(buildBillItem(b));
-      });
+      otherItems.forEach(function (b) { listWrap.appendChild(buildBillItem(b)); });
     }
   }
 
@@ -660,13 +583,13 @@
     const status = getStatus(b);
     const days = b.dueDate ? global.utils.daysFromToday(b.dueDate) : null;
 
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'bill-item' + (status === 'overdue' ? ' overdue' : '') + (b.paid ? ' paid' : '');
+    const item = document.createElement('div');
+    item.className = 'bill-item-wrapper';
 
-    if (b.__otherMonth) {
-      item.classList.add('other-month');
-    }
+    const inner = document.createElement('button');
+    inner.type = 'button';
+    inner.className = 'bill-item' + (status === 'overdue' ? ' overdue' : '') + (b.paid ? ' paid' : '');
+    if (b.__otherMonth) inner.classList.add('other-month');
 
     const thumb = document.createElement('div');
     thumb.className = 'bill-thumb';
@@ -686,7 +609,7 @@
     } else {
       thumb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path></svg>';
     }
-    item.appendChild(thumb);
+    inner.appendChild(thumb);
 
     const body = document.createElement('div');
     body.className = 'bill-body';
@@ -733,60 +656,91 @@
     meta.appendChild(statusEl);
 
     body.appendChild(meta);
-    item.appendChild(body);
+    inner.appendChild(body);
 
     const amount = document.createElement('div');
     amount.className = 'bill-amount';
     const flag = global.currencies.getFlag(b.currency || 'RSD');
     amount.innerHTML = formatAmount(b.amount || 0) +
       ' <span class="currency-code">' + flag + ' ' + (b.currency || 'RSD') + '</span>';
-    item.appendChild(amount);
+    inner.appendChild(amount);
 
-    item.addEventListener('click', function () {
+    inner.addEventListener('click', function () {
       openBillDetail(b);
     });
+
+    item.appendChild(inner);
+
+    /* Brzo plaćanje — dugme sa strane */
+    if (!b.paid) {
+      const payBtn = document.createElement('button');
+      payBtn.type = 'button';
+      payBtn.className = 'bill-quick-pay';
+      payBtn.setAttribute('aria-label', t('bills.markPaid', 'Označi plaćeno'));
+      payBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      payBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        markBillPaidQuick(b, payBtn);
+      });
+      item.appendChild(payBtn);
+    }
 
     return item;
   }
 
-  /* =========================================================
-     TAB 2 — RATE
-     ========================================================= */
+  /**
+   * Brzo plaćanje bez otvaranja detalja.
+   */
+  function markBillPaidQuick(b, btn) {
+    if (btn) {
+      btn.classList.add('paying');
+      btn.disabled = true;
+    }
+    b.paid = true;
+    b.paidDate = global.utils.todayISO();
+
+    global.storage.save(STORE, b).then(function () {
+      return syncBillToMoney(b);
+    }).then(function () {
+      if (global.home && global.home.showToast) {
+        global.home.showToast(t('bills.paidToast', 'Račun plaćen!'));
+      }
+      global.dispatchEvent(new CustomEvent('alatikapro:datachange'));
+      loadAll().then(function () {
+        const view = document.getElementById('view-bills');
+        if (view) refreshAll(view);
+        if (global.home) global.home.refresh();
+      });
+    }).catch(function () {
+      if (btn) {
+        btn.classList.remove('paying');
+        btn.disabled = false;
+      }
+    });
+  }
+
+  /* ---------- RATE ---------- */
 
   function renderRatesTab(view) {
     const summary = document.createElement('div');
     summary.className = 'bills-summary';
 
-    const activeRates = state.rates.filter(function (r) {
-      return getRateStatus(r) === 'active';
-    });
-
+    const activeRates = state.rates.filter(function (r) { return getRateStatus(r) === 'active'; });
     let totalMonthly = 0;
-    activeRates.forEach(function (r) {
-      totalMonthly += getRateMonthlyAmount(r);
-    });
+    activeRates.forEach(function (r) { totalMonthly += getRateMonthlyAmount(r); });
 
     summary.innerHTML = [
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value total">' + state.rates.length + '</div>',
-      '  <div class="bills-stat-label">' + t('rates.stat.total', 'Ukupno') + '</div>',
-      '</div>',
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value paid">' + activeRates.length + '</div>',
-      '  <div class="bills-stat-label">' + t('rates.stat.active', 'Aktivne') + '</div>',
-      '</div>',
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value pending">' + formatInt(totalMonthly) + '</div>',
-      '  <div class="bills-stat-label">' + t('rates.stat.monthly', 'Mesečno RSD') + '</div>',
-      '</div>'
+      '<div class="bills-stat"><div class="bills-stat-value total">' + state.rates.length + '</div><div class="bills-stat-label">' + t('rates.stat.total', 'Ukupno') + '</div></div>',
+      '<div class="bills-stat"><div class="bills-stat-value paid">' + activeRates.length + '</div><div class="bills-stat-label">' + t('rates.stat.active', 'Aktivne') + '</div></div>',
+      '<div class="bills-stat"><div class="bills-stat-value pending">' + formatInt(totalMonthly) + '</div><div class="bills-stat-label">' + t('rates.stat.monthly', 'Mesečno RSD') + '</div></div>'
     ].join('');
     view.appendChild(summary);
 
     const filters = document.createElement('div');
     filters.className = 'bills-filters';
     const defs = [
-      { id: 'all',      label: t('rates.filter.all', 'Sve') },
-      { id: 'active',   label: t('rates.filter.active', 'Aktivne') },
+      { id: 'all', label: t('rates.filter.all', 'Sve') },
+      { id: 'active', label: t('rates.filter.active', 'Aktivne') },
       { id: 'finished', label: t('rates.filter.finished', 'Završene') }
     ];
     defs.forEach(function (d) {
@@ -806,20 +760,6 @@
     });
     view.appendChild(filters);
 
-    const search = document.createElement('div');
-    search.className = 'bills-search';
-    search.innerHTML = [
-      '<svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.65" y2="16.65"></line></svg>',
-      '<input type="search" id="ratesSearchInput" placeholder="' + t('rates.search', 'Pretraga rata...') + '" value="' + global.utils.escapeHtml(state.search) + '" />'
-    ].join('');
-    view.appendChild(search);
-    const inp = search.querySelector('#ratesSearchInput');
-    inp.addEventListener('input', global.utils.debounce(function () {
-      state.search = inp.value.trim();
-      const listWrap = view.querySelector('.bills-list');
-      if (listWrap) renderRatesList(listWrap);
-    }, 180));
-
     const listWrap = document.createElement('div');
     listWrap.className = 'bills-list';
     view.appendChild(listWrap);
@@ -830,22 +770,10 @@
 
   function renderRatesList(listWrap) {
     listWrap.innerHTML = '';
-
     let filtered = state.rates.slice();
 
-    if (state.rateFilter === 'active') {
-      filtered = filtered.filter(function (r) { return getRateStatus(r) === 'active'; });
-    } else if (state.rateFilter === 'finished') {
-      filtered = filtered.filter(function (r) { return getRateStatus(r) === 'finished'; });
-    }
-
-    if (state.search) {
-      const q = state.search.toLowerCase();
-      filtered = filtered.filter(function (r) {
-        return (r.name || '').toLowerCase().indexOf(q) !== -1 ||
-               (r.bank || '').toLowerCase().indexOf(q) !== -1;
-      });
-    }
+    if (state.rateFilter === 'active') filtered = filtered.filter(function (r) { return getRateStatus(r) === 'active'; });
+    else if (state.rateFilter === 'finished') filtered = filtered.filter(function (r) { return getRateStatus(r) === 'finished'; });
 
     if (filtered.length === 0) {
       listWrap.innerHTML = [
@@ -859,9 +787,7 @@
       return;
     }
 
-    filtered.forEach(function (r) {
-      listWrap.appendChild(buildRateItem(r));
-    });
+    filtered.forEach(function (r) { listWrap.appendChild(buildRateItem(r)); });
   }
 
   function buildRateItem(r) {
@@ -894,23 +820,15 @@
     const progressWrap = document.createElement('div');
     progressWrap.className = 'rate-progress';
     progressWrap.innerHTML = [
-      '<div class="rate-progress-bar">',
-      '  <div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div>',
-      '</div>',
-      '<div class="rate-progress-label">',
-      '  <span>' + progress.paid + ' / ' + progress.total + ' ' + t('rates.installments', 'rata') + '</span>',
-      '  <span>' + progress.percent + '%</span>',
-      '</div>'
+      '<div class="rate-progress-bar"><div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div></div>',
+      '<div class="rate-progress-label"><span>' + progress.paid + ' / ' + progress.total + ' ' + t('rates.installments', 'rata') + '</span><span>' + progress.percent + '%</span></div>'
     ].join('');
     body.appendChild(progressWrap);
 
     const info = document.createElement('div');
     info.className = 'rate-remaining';
-    info.innerHTML = [
-      '<strong>' + t('rates.monthly', 'Mesečno') + ':</strong> ' + formatAmount(monthly) + ' ' + flag + ' ' + currency,
-      ' · ',
-      '<strong>' + t('rates.remaining', 'Ostalo') + ':</strong> ' + formatAmount(remaining) + ' ' + flag + ' ' + currency
-    ].join('');
+    info.innerHTML = '<strong>' + t('rates.monthly', 'Mesečno') + ':</strong> ' + formatAmount(monthly) + ' ' + flag + ' ' + currency +
+      ' · <strong>' + t('rates.remaining', 'Ostalo') + ':</strong> ' + formatAmount(remaining) + ' ' + flag + ' ' + currency;
     body.appendChild(info);
 
     const meta = document.createElement('div');
@@ -925,9 +843,7 @@
 
     const statusEl = document.createElement('span');
     statusEl.className = 'rate-status ' + (status === 'finished' ? 'finished' : 'active');
-    statusEl.textContent = status === 'finished'
-      ? t('rates.status.finished', 'Završena')
-      : t('rates.status.active', 'Aktivna');
+    statusEl.textContent = status === 'finished' ? t('rates.status.finished', 'Završena') : t('rates.status.active', 'Aktivna');
     meta.appendChild(statusEl);
 
     body.appendChild(meta);
@@ -937,16 +853,8 @@
       const payBtn = document.createElement('button');
       payBtn.type = 'button';
       payBtn.className = 'rate-pay-btn';
-      payBtn.innerHTML = [
-        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">',
-        '<polyline points="20 6 9 17 4 12"></polyline>',
-        '</svg>',
-        '<span>' + t('rates.payNow', 'Plati ratu') + '</span>'
-      ].join('');
-      payBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        payRate(r, payBtn);
-      });
+      payBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>' + t('rates.payNow', 'Plati ratu') + '</span>';
+      payBtn.addEventListener('click', function (e) { e.stopPropagation(); payRate(r, payBtn); });
       item.appendChild(payBtn);
     } else {
       const doneBadge = document.createElement('div');
@@ -969,20 +877,16 @@
     const paid = Number(r.paidInstallments) || 0;
     if (paid >= total) return;
 
-    if (btn) {
-      btn.classList.add('paying');
-      btn.disabled = true;
-    }
+    if (btn) { btn.classList.add('paying'); btn.disabled = true; }
 
     r.paidInstallments = paid + 1;
     r.lastPaidAt = new Date().toISOString();
 
-    if (r.paidInstallments >= total) {
-      r.active = false;
-    }
+    if (r.paidInstallments >= total) r.active = false;
 
     global.storage.save(STORE_RATES, r).then(function () {
       if (global.home) global.home.showToast(t('rates.paidToast', 'Rata plaćena!'));
+      global.dispatchEvent(new CustomEvent('alatikapro:datachange'));
       loadAll().then(function () {
         const view = document.getElementById('view-bills');
         if (view) refreshAll(view);
@@ -990,9 +894,7 @@
     });
   }
 
-  /* =========================================================
-     TAB 3 — ČEKOVI
-     ========================================================= */
+  /* ---------- ČEKOVI ---------- */
 
   function renderChecksTab(view) {
     const summary = computeCheckSummary();
@@ -1000,18 +902,9 @@
     const box = document.createElement('div');
     box.className = 'bills-summary';
     box.innerHTML = [
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value total">' + summary.total + '</div>',
-      '  <div class="bills-stat-label">' + t('checks.stat.total', 'Ukupno') + '</div>',
-      '</div>',
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value paid">' + summary.realized + '</div>',
-      '  <div class="bills-stat-label">' + t('checks.stat.realized', 'Realizovano') + '</div>',
-      '</div>',
-      '<div class="bills-stat">',
-      '  <div class="bills-stat-value pending">' + summary.pending + '</div>',
-      '  <div class="bills-stat-label">' + t('checks.stat.pending', 'Preostalo') + '</div>',
-      '</div>'
+      '<div class="bills-stat"><div class="bills-stat-value total">' + summary.total + '</div><div class="bills-stat-label">' + t('checks.stat.total', 'Ukupno') + '</div></div>',
+      '<div class="bills-stat"><div class="bills-stat-value paid">' + summary.realized + '</div><div class="bills-stat-label">' + t('checks.stat.realized', 'Realizovano') + '</div></div>',
+      '<div class="bills-stat"><div class="bills-stat-value pending">' + summary.pending + '</div><div class="bills-stat-label">' + t('checks.stat.pending', 'Preostalo') + '</div></div>'
     ].join('');
     view.appendChild(box);
 
@@ -1024,8 +917,7 @@
         msg.classList.add('all-done');
         msg.innerHTML = '✓ ' + t('checks.allDone', 'Svi čekovi za ovaj mesec su realizovani.');
       } else {
-        msg.innerHTML = '<span class="check-count">' + summary.realized + ' / ' + summary.total + '</span> ' +
-          t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
+        msg.innerHTML = '<span class="check-count">' + summary.realized + ' / ' + summary.total + '</span> ' + t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
       }
       view.appendChild(msg);
     }
@@ -1033,8 +925,8 @@
     const filters = document.createElement('div');
     filters.className = 'bills-filters';
     const defs = [
-      { id: 'all',      label: t('checks.filter.all', 'Svi') },
-      { id: 'pending',  label: t('checks.filter.pending', 'Nerealizovani') },
+      { id: 'all', label: t('checks.filter.all', 'Svi') },
+      { id: 'pending', label: t('checks.filter.pending', 'Nerealizovani') },
       { id: 'realized', label: t('checks.filter.realized', 'Realizovani') }
     ];
     defs.forEach(function (d) {
@@ -1064,14 +956,10 @@
 
   function renderChecksList(listWrap) {
     listWrap.innerHTML = '';
-
     let filtered = state.checks.slice();
 
-    if (state.checkFilter === 'pending') {
-      filtered = filtered.filter(function (c) { return !c.realized; });
-    } else if (state.checkFilter === 'realized') {
-      filtered = filtered.filter(function (c) { return c.realized === true; });
-    }
+    if (state.checkFilter === 'pending') filtered = filtered.filter(function (c) { return !c.realized; });
+    else if (state.checkFilter === 'realized') filtered = filtered.filter(function (c) { return c.realized === true; });
 
     const grouped = {};
     const standalone = [];
@@ -1080,16 +968,12 @@
       if (c.purchaseId) {
         if (!grouped[c.purchaseId]) grouped[c.purchaseId] = [];
         grouped[c.purchaseId].push(c);
-      } else {
-        standalone.push(c);
-      }
+      } else standalone.push(c);
     });
 
     const groupsArr = Object.keys(grouped).map(function (pid) {
       const checks = grouped[pid];
-      checks.sort(function (a, b) {
-        return (a.realizeDate || '').localeCompare(b.realizeDate || '');
-      });
+      checks.sort(function (a, b) { return (a.realizeDate || '').localeCompare(b.realizeDate || ''); });
       return { pid: pid, checks: checks };
     });
 
@@ -1102,16 +986,8 @@
     });
 
     let totalShown = 0;
-
-    groupsArr.forEach(function (g) {
-      totalShown += g.checks.length;
-      listWrap.appendChild(buildPurchaseGroup(g.checks));
-    });
-
-    standalone.forEach(function (c) {
-      totalShown += 1;
-      listWrap.appendChild(buildCheckItem(c));
-    });
+    groupsArr.forEach(function (g) { totalShown += g.checks.length; listWrap.appendChild(buildPurchaseGroup(g.checks)); });
+    standalone.forEach(function (c) { totalShown += 1; listWrap.appendChild(buildCheckItem(c)); });
 
     if (totalShown === 0) {
       listWrap.innerHTML = [
@@ -1147,13 +1023,8 @@
       '  <div class="purchase-title">' + global.utils.escapeHtml(first.purpose || '') + '</div>',
       first.seller ? '  <div class="purchase-subtitle">' + global.utils.escapeHtml(first.seller) + '</div>' : '',
       '  <div class="rate-progress" style="margin-top: 0.4rem;">',
-      '    <div class="rate-progress-bar">',
-      '      <div class="rate-progress-fill" style="width: ' + percent + '%"></div>',
-      '    </div>',
-      '    <div class="rate-progress-label">',
-      '      <span>' + realized + ' / ' + total + ' ' + t('checks.realized', 'realizovano') + '</span>',
-      '      <span>' + percent + '%</span>',
-      '    </div>',
+      '    <div class="rate-progress-bar"><div class="rate-progress-fill" style="width: ' + percent + '%"></div></div>',
+      '    <div class="rate-progress-label"><span>' + realized + ' / ' + total + ' ' + t('checks.realized', 'realizovano') + '</span><span>' + percent + '%</span></div>',
       '  </div>',
       '  <div class="purchase-meta">',
       '    <span>' + formatAmount(monthly) + ' ' + flag + ' ' + currency + ' / ' + t('checks.month', 'mesec') + '</span>',
@@ -1176,9 +1047,7 @@
       quickBtn.type = 'button';
       quickBtn.className = 'purchase-quick-btn';
 
-      const nextDateText = nextPending.realizeDate
-        ? global.utils.formatDate(nextPending.realizeDate)
-        : '';
+      const nextDateText = nextPending.realizeDate ? global.utils.formatDate(nextPending.realizeDate) : '';
 
       quickBtn.innerHTML = [
         '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
@@ -1204,10 +1073,7 @@
     details.className = 'purchase-details';
     details.style.display = 'none';
 
-    checks.forEach(function (c) {
-      details.appendChild(buildCheckItem(c));
-    });
-
+    checks.forEach(function (c) { details.appendChild(buildCheckItem(c)); });
     group.appendChild(details);
 
     header.style.cursor = 'pointer';
@@ -1233,9 +1099,6 @@
     const check = document.createElement('button');
     check.type = 'button';
     check.className = 'rem-check' + (c.realized ? ' done' : '');
-    check.setAttribute('aria-label', c.realized
-      ? t('checks.markPending', 'Označi kao nerealizovano')
-      : t('checks.markRealized', 'Označi kao realizovano'));
     check.innerHTML = c.realized
       ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
       : '';
@@ -1284,8 +1147,7 @@
 
     const amount = document.createElement('div');
     amount.className = 'bill-amount';
-    amount.innerHTML = formatAmount(c.amount || 0) +
-      ' <span class="currency-code">' + flag + ' ' + currency + '</span>';
+    amount.innerHTML = formatAmount(c.amount || 0) + ' <span class="currency-code">' + flag + ' ' + currency + '</span>';
     item.appendChild(amount);
 
     item.addEventListener('click', function (e) {
@@ -1307,56 +1169,19 @@
     }
 
     global.storage.save(STORE_CHECKS, c).then(function () {
-      if (onDone) {
-        onDone();
-      } else {
+      if (onDone) onDone();
+      else {
         const v = document.getElementById('view-bills');
         if (v) {
           const lw = v.querySelector('.bills-list');
           if (lw) renderChecksList(lw);
-          refreshChecksSummary(v);
         }
         if (global.home) global.home.refresh();
       }
     });
   }
 
-  function refreshChecksSummary(view) {
-    const summary = computeCheckSummary();
-    const summaryBox = view.querySelector('.bills-summary');
-    if (summaryBox) {
-      summaryBox.innerHTML = [
-        '<div class="bills-stat">',
-        '  <div class="bills-stat-value total">' + summary.total + '</div>',
-        '  <div class="bills-stat-label">' + t('checks.stat.total', 'Ukupno') + '</div>',
-        '</div>',
-        '<div class="bills-stat">',
-        '  <div class="bills-stat-value paid">' + summary.realized + '</div>',
-        '  <div class="bills-stat-label">' + t('checks.stat.realized', 'Realizovano') + '</div>',
-        '</div>',
-        '<div class="bills-stat">',
-        '  <div class="bills-stat-value pending">' + summary.pending + '</div>',
-        '  <div class="bills-stat-label">' + t('checks.stat.pending', 'Preostalo') + '</div>',
-        '</div>'
-      ].join('');
-    }
-
-    const msgEl = view.querySelector('.checks-status-message');
-    if (msgEl) {
-      if (summary.pending === 0 && summary.total > 0) {
-        msgEl.classList.add('all-done');
-        msgEl.innerHTML = '✓ ' + t('checks.allDone', 'Svi čekovi za ovaj mesec su realizovani.');
-      } else {
-        msgEl.classList.remove('all-done');
-        msgEl.innerHTML = '<span class="check-count">' + summary.realized + ' / ' + summary.total + '</span> ' +
-          t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
-      }
-    }
-  }
-
-  /* =========================================================
-     FORMA — RAČUN
-     ========================================================= */
+  /* ---------- FORMA — RAČUN ---------- */
 
   let formOverlay = null;
   let currentAttachment = { id: null, isNew: false, removed: false };
@@ -1367,26 +1192,13 @@
 
     const isEdit = !!existing;
     const item = existing ? Object.assign({}, existing) : {
-      name: '',
-      vendor: '',
-      category: '',
-      month: state.month || currentMonthISO(),
-      amount: '',
-      currency: global.currencies.DEFAULT_CODE,
-      issueDate: global.utils.todayISO(),
-      dueDate: '',
-      paidDate: '',
-      paid: false,
-      description: '',
-      reference: '',
-      attachmentId: ''
+      name: '', vendor: '', category: '', month: state.month || currentMonthISO(),
+      amount: '', currency: global.currencies.DEFAULT_CODE,
+      issueDate: global.utils.todayISO(), dueDate: '', paidDate: '',
+      paid: false, description: '', reference: '', attachmentId: ''
     };
 
-    currentAttachment = {
-      id: item.attachmentId || null,
-      isNew: false,
-      removed: false
-    };
+    currentAttachment = { id: item.attachmentId || null, isNew: false, removed: false };
 
     formOverlay = document.createElement('div');
     formOverlay.className = 'modal-overlay';
@@ -1412,54 +1224,35 @@
       '    <div class="bill-form-section"><div id="uploadArea"></div></div>',
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.basic', 'Osnovni podaci') + '</div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.name', 'Naziv računa') + ' *</label>',
-      '        <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('bills.field.namePlaceholder', 'npr. Struja za oktobar') + '" />',
-      '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.vendor', 'Dobavljač') + '</label>',
-      '        <input class="input" type="text" name="vendor" value="' + global.utils.escapeHtml(item.vendor || '') + '" placeholder="' + t('bills.field.vendorPlaceholder', 'npr. EPS') + '" />',
-      '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.category', 'Kategorija') + '</label>',
-      '        <select class="select" name="category">',
-      '          <option value="">' + t('bills.field.noCategory', '— Bez kategorije —') + '</option>',
-      catOptions,
-      '        </select>',
-      '      </div>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.name', 'Naziv računa') + ' *</label>',
+      '        <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('bills.field.namePlaceholder', 'npr. Struja za oktobar') + '" /></div>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.vendor', 'Dobavljač') + '</label>',
+      '        <input class="input" type="text" name="vendor" value="' + global.utils.escapeHtml(item.vendor || '') + '" placeholder="' + t('bills.field.vendorPlaceholder', 'npr. EPS') + '" /></div>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.category', 'Kategorija') + '</label>',
+      '        <select class="select" name="category"><option value="">' + t('bills.field.noCategory', '— Bez kategorije —') + '</option>' + catOptions + '</select></div>',
       '    </div>',
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.amount', 'Iznos i valuta') + '</div>',
       '      <div class="amount-row">',
-      '        <div class="form-group">',
-      '          <label class="label">' + t('bills.field.amount', 'Iznos') + ' *</label>',
-      '          <input class="input" type="text" inputmode="decimal" name="amount" required value="' + global.utils.escapeHtml(String(item.amount || '')) + '" placeholder="0,00" />',
-      '        </div>',
-      '        <div class="form-group currency-select">',
-      '          <label class="label">' + t('bills.field.currency', 'Valuta') + '</label>',
-      '          <select class="select" name="currency">' + currencyOptions + '</select>',
-      '        </div>',
+      '        <div class="form-group"><label class="label">' + t('bills.field.amount', 'Iznos') + ' *</label>',
+      '          <input class="input" type="text" inputmode="decimal" name="amount" required value="' + global.utils.escapeHtml(String(item.amount || '')) + '" placeholder="0,00" /></div>',
+      '        <div class="form-group currency-select"><label class="label">' + t('bills.field.currency', 'Valuta') + '</label>',
+      '          <select class="select" name="currency">' + currencyOptions + '</select></div>',
       '      </div>',
       '    </div>',
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.dates', 'Period i datumi') + '</div>',
       '      <div class="form-row">',
-      '        <div class="form-group">',
-      '          <label class="label">' + t('bills.field.month', 'Mesec') + ' *</label>',
-      '          <input class="input" type="month" name="month" required value="' + global.utils.escapeHtml(item.month || currentMonthISO()) + '" />',
-      '        </div>',
-      '        <div class="form-group">',
-      '          <label class="label">' + t('bills.field.issueDate', 'Datum izdavanja') + '</label>',
+      '        <div class="form-group"><label class="label">' + t('bills.field.month', 'Mesec') + ' *</label>',
+      '          <input class="input" type="month" name="month" required value="' + global.utils.escapeHtml(item.month || currentMonthISO()) + '" /></div>',
+      '        <div class="form-group"><label class="label">' + t('bills.field.issueDate', 'Datum izdavanja') + '</label>',
       global.utils.dateInputHTML('issueDate', item.issueDate || '', {}),
       '        </div>',
       '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.dueDate', 'Rok plaćanja') + '</label>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.dueDate', 'Rok plaćanja') + '</label>',
       global.utils.dateInputHTML('dueDate', item.dueDate || '', {}),
       '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label"><input type="checkbox" name="paid" ' + (item.paid ? 'checked' : '') + ' style="margin-right:0.4rem;" /> ' + t('bills.field.paid', 'Plaćeno') + '</label>',
-      '      </div>',
+      '      <div class="form-group"><label class="label"><input type="checkbox" name="paid" ' + (item.paid ? 'checked' : '') + ' style="margin-right:0.4rem;" /> ' + t('bills.field.paid', 'Plaćeno') + '</label></div>',
       '      <div class="form-group" id="paidDateGroup" style="' + (item.paid ? '' : 'display:none;') + '">',
       '        <label class="label">' + t('bills.field.paidDate', 'Datum plaćanja') + '</label>',
       global.utils.dateInputHTML('paidDate', item.paidDate || '', {}),
@@ -1467,14 +1260,10 @@
       '    </div>',
       '    <div class="bill-form-section">',
       '      <div class="bill-form-section-title">' + t('bills.section.extra', 'Dodatno') + '</div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.reference', 'Referentni broj') + '</label>',
-      '        <input class="input" type="text" name="reference" value="' + global.utils.escapeHtml(item.reference || '') + '" />',
-      '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('bills.field.description', 'Opis') + '</label>',
-      '        <textarea class="textarea" name="description">' + global.utils.escapeHtml(item.description || '') + '</textarea>',
-      '      </div>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.reference', 'Referentni broj') + '</label>',
+      '        <input class="input" type="text" name="reference" value="' + global.utils.escapeHtml(item.reference || '') + '" /></div>',
+      '      <div class="form-group"><label class="label">' + t('bills.field.description', 'Opis') + '</label>',
+      '        <textarea class="textarea" name="description">' + global.utils.escapeHtml(item.description || '') + '</textarea></div>',
       '    </div>',
       '    <div class="form-error" id="billFormError"></div>',
       '    <div class="modal-actions">',
@@ -1487,7 +1276,6 @@
 
     document.body.appendChild(formOverlay);
     global.utils.bindDateInputs(formOverlay);
-
     renderUploadArea(formOverlay.querySelector('#uploadArea'));
 
     const paidCheckbox = formOverlay.querySelector('input[name="paid"]');
@@ -1496,9 +1284,7 @@
       paidDateGroup.style.display = paidCheckbox.checked ? '' : 'none';
       if (paidCheckbox.checked) {
         const current = global.utils.getDateValue(formOverlay, 'paidDate');
-        if (!current) {
-          global.utils.setDateValue(formOverlay, 'paidDate', global.utils.todayISO());
-        }
+        if (!current) global.utils.setDateValue(formOverlay, 'paidDate', global.utils.todayISO());
       }
     });
 
@@ -1511,9 +1297,7 @@
       submitBillForm(formOverlay);
     });
 
-    requestAnimationFrame(function () {
-      formOverlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { formOverlay.classList.add('show'); });
   }
 
   function renderUploadArea(container) {
@@ -1569,7 +1353,7 @@
       '  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>',
       '</div>',
       '<div class="upload-zone-title">' + t('bills.attachment.add', 'Dodaj iz galerije') + '</div>',
-      '<div class="upload-zone-hint">' + t('bills.attachment.hint', 'Izaberi fotografiju računa ili PDF dokument. Ostaje samo na tvom uređaju.') + '</div>'
+      '<div class="upload-zone-hint">' + t('bills.attachment.hint', 'Izaberi fotografiju računa ili PDF dokument.') + '</div>'
     ].join('');
 
     zone.addEventListener('click', pickFile);
@@ -1584,10 +1368,7 @@
     document.body.appendChild(input);
     input.addEventListener('change', function () {
       const file = input.files && input.files[0];
-      if (!file) {
-        document.body.removeChild(input);
-        return;
-      }
+      if (!file) { document.body.removeChild(input); return; }
       saveFile(file).then(function (id) {
         currentAttachment.id = id;
         currentAttachment.isNew = true;
@@ -1596,9 +1377,7 @@
         if (area) renderUploadArea(area);
       }).catch(function (err) {
         if (global.home) global.home.showToast(t('bills.err.file', 'Greška: ') + (err.message || ''));
-      }).then(function () {
-        document.body.removeChild(input);
-      });
+      }).then(function () { document.body.removeChild(input); });
     });
     input.click();
   }
@@ -1633,23 +1412,12 @@
       description: form.description.value.trim()
     };
 
-    if (!data.name) {
-      errEl.textContent = t('bills.err.name', 'Naziv je obavezan.');
-      return;
-    }
-    if (!data.amount || data.amount <= 0) {
-      errEl.textContent = t('bills.err.amount', 'Iznos mora biti veći od 0.');
-      return;
-    }
-    if (!data.month) {
-      errEl.textContent = t('bills.err.month', 'Mesec je obavezan.');
-      return;
-    }
+    if (!data.name) { errEl.textContent = t('bills.err.name', 'Naziv je obavezan.'); return; }
+    if (!data.amount || data.amount <= 0) { errEl.textContent = t('bills.err.amount', 'Iznos mora biti veći od 0.'); return; }
+    if (!data.month) { errEl.textContent = t('bills.err.month', 'Mesec je obavezan.'); return; }
 
     let record;
-    const wasPaid = state.editingId
-      ? (state.items.find(function (x) { return x.id === state.editingId; }) || {}).paid
-      : false;
+    const wasPaid = state.editingId ? (state.items.find(function (x) { return x.id === state.editingId; }) || {}).paid : false;
 
     if (state.editingId) {
       const existing = state.items.find(function (x) { return x.id === state.editingId; });
@@ -1673,15 +1441,9 @@
     }
 
     global.storage.save(STORE, record).then(function () {
-      /* Sinhronizacija sa Novcem */
-      if (record.paid && !wasPaid) {
-        return syncBillToMoney(record);
-      } else if (!record.paid && wasPaid) {
-        return removeBillFromMoney(record.id);
-      } else if (record.paid && wasPaid) {
-        /* Ažuriraj postojeću transakciju (npr. promenjen iznos) */
-        return syncBillToMoney(record);
-      }
+      if (record.paid && !wasPaid) return syncBillToMoney(record);
+      else if (!record.paid && wasPaid) return removeBillFromMoney(record.id);
+      else if (record.paid && wasPaid) return syncBillToMoney(record);
       return Promise.resolve();
     }).then(function () {
       closeForm();
@@ -1689,6 +1451,7 @@
         const view = document.getElementById('view-bills');
         if (view) refreshAll(view);
         if (global.home) global.home.refresh();
+        global.dispatchEvent(new CustomEvent('alatikapro:datachange'));
       });
     }).catch(function (err) {
       errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
@@ -1705,10 +1468,7 @@
     const currency = b.currency || 'RSD';
     const flag = global.currencies.getFlag(currency);
 
-    let attachmentHTML = '';
-    if (b.attachmentId) {
-      attachmentHTML = '<div id="detailAttachment" style="margin-top: 0.75rem;"></div>';
-    }
+    let attachmentHTML = b.attachmentId ? '<div id="detailAttachment" style="margin-top: 0.75rem;"></div>' : '';
 
     overlay.innerHTML = [
       '<div class="modal-sheet">',
@@ -1742,7 +1502,6 @@
         if (!info) return;
         const container = overlay.querySelector('#detailAttachment');
         if (!container) return;
-
         if (info.type && info.type.indexOf('image/') === 0) {
           const img = document.createElement('img');
           img.src = info.url;
@@ -1763,12 +1522,8 @@
       });
     }
 
-    overlay.querySelector('#detailClose').addEventListener('click', function () {
-      document.body.removeChild(overlay);
-    });
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) document.body.removeChild(overlay);
-    });
+    overlay.querySelector('#detailClose').addEventListener('click', function () { document.body.removeChild(overlay); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
     overlay.querySelector('#detailEdit').addEventListener('click', function () {
       document.body.removeChild(overlay);
       openBillForm(b);
@@ -1778,7 +1533,6 @@
       if (!ok) return;
       if (b.attachmentId) deleteFile(b.attachmentId);
       global.storage.delete(STORE, b.id).then(function () {
-        /* Obriši i povezanu transakciju */
         return removeBillFromMoney(b.id);
       }).then(function () {
         document.body.removeChild(overlay);
@@ -1809,14 +1563,10 @@
       });
     }
 
-    requestAnimationFrame(function () {
-      overlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { overlay.classList.add('show'); });
   }
 
-  /* =========================================================
-     FORMA — RATA
-     ========================================================= */
+  /* ---------- FORMA — RATA ---------- */
 
   function openRateForm(existing) {
     if (formOverlay) return;
@@ -1824,16 +1574,9 @@
 
     const isEdit = !!existing;
     const item = existing ? Object.assign({}, existing) : {
-      name: '',
-      bank: '',
-      totalAmount: '',
-      currency: 'RSD',
-      dayOfMonth: 15,
-      startDate: global.utils.todayISO(),
-      totalInstallments: 12,
-      paidInstallments: 0,
-      active: true,
-      notes: ''
+      name: '', bank: '', totalAmount: '', currency: 'RSD',
+      dayOfMonth: 15, startDate: global.utils.todayISO(),
+      totalInstallments: 12, paidInstallments: 0, active: true, notes: ''
     };
 
     formOverlay = document.createElement('div');
@@ -1850,49 +1593,32 @@
       '<div class="modal-sheet">',
       '  <h3 class="modal-title">' + (isEdit ? t('rates.edit', 'Izmeni ratu') : t('rates.new', 'Nova rata')) + '</h3>',
       '  <form id="rateForm" novalidate>',
-      '    <div class="form-group">',
-      '      <label class="label">' + t('rates.field.name', 'Naziv') + ' *</label>',
-      '      <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('rates.field.namePlaceholder', 'npr. Kredit za auto') + '" />',
-      '    </div>',
-      '    <div class="form-group">',
-      '      <label class="label">' + t('rates.field.bank', 'Banka / primalac') + '</label>',
-      '      <input class="input" type="text" name="bank" value="' + global.utils.escapeHtml(item.bank || '') + '" placeholder="' + t('rates.field.bankPlaceholder', 'npr. Banca Intesa') + '" />',
-      '    </div>',
+      '    <div class="form-group"><label class="label">' + t('rates.field.name', 'Naziv') + ' *</label>',
+      '      <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" /></div>',
+      '    <div class="form-group"><label class="label">' + t('rates.field.bank', 'Banka / primalac') + '</label>',
+      '      <input class="input" type="text" name="bank" value="' + global.utils.escapeHtml(item.bank || '') + '" /></div>',
       '    <div class="amount-row">',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('rates.field.totalAmount', 'Ukupan iznos') + ' *</label>',
-      '        <input class="input" type="text" inputmode="decimal" name="totalAmount" required value="' + global.utils.escapeHtml(String(item.totalAmount || '')) + '" placeholder="0,00" />',
-      '      </div>',
-      '      <div class="form-group currency-select">',
-      '        <label class="label">' + t('rates.field.currency', 'Valuta') + '</label>',
-      '        <select class="select" name="currency">' + currencyOptions + '</select>',
-      '      </div>',
+      '      <div class="form-group"><label class="label">' + t('rates.field.totalAmount', 'Ukupan iznos') + ' *</label>',
+      '        <input class="input" type="text" inputmode="decimal" name="totalAmount" required value="' + global.utils.escapeHtml(String(item.totalAmount || '')) + '" /></div>',
+      '      <div class="form-group currency-select"><label class="label">' + t('rates.field.currency', 'Valuta') + '</label>',
+      '        <select class="select" name="currency">' + currencyOptions + '</select></div>',
       '    </div>',
       '    <div class="form-row">',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('rates.field.totalInstallments', 'Broj rata') + ' *</label>',
-      '        <input class="input" type="number" min="1" max="360" name="totalInstallments" required value="' + (item.totalInstallments || 12) + '" />',
-      '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('rates.field.dayOfMonth', 'Dan u mesecu') + '</label>',
-      '        <input class="input" type="number" min="1" max="28" name="dayOfMonth" value="' + (item.dayOfMonth || 15) + '" />',
-      '      </div>',
+      '      <div class="form-group"><label class="label">' + t('rates.field.totalInstallments', 'Broj rata') + ' *</label>',
+      '        <input class="input" type="number" min="1" max="360" name="totalInstallments" required value="' + (item.totalInstallments || 12) + '" /></div>',
+      '      <div class="form-group"><label class="label">' + t('rates.field.dayOfMonth', 'Dan u mesecu') + '</label>',
+      '        <input class="input" type="number" min="1" max="28" name="dayOfMonth" value="' + (item.dayOfMonth || 15) + '" /></div>',
       '    </div>',
       '    <div class="check-monthly-preview" id="rateMonthlyPreview"></div>',
       '    <div class="form-row">',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('rates.field.startDate', 'Datum početka') + '</label>',
+      '      <div class="form-group"><label class="label">' + t('rates.field.startDate', 'Datum početka') + '</label>',
       global.utils.dateInputHTML('startDate', item.startDate || '', {}),
       '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('rates.field.paidInstallments', 'Plaćeno rata') + '</label>',
-      '        <input class="input" type="number" min="0" name="paidInstallments" value="' + (item.paidInstallments || 0) + '" />',
-      '      </div>',
+      '      <div class="form-group"><label class="label">' + t('rates.field.paidInstallments', 'Plaćeno rata') + '</label>',
+      '        <input class="input" type="number" min="0" name="paidInstallments" value="' + (item.paidInstallments || 0) + '" /></div>',
       '    </div>',
-      '    <div class="form-group">',
-      '      <label class="label">' + t('rates.field.notes', 'Napomena') + '</label>',
-      '      <textarea class="textarea" name="notes">' + global.utils.escapeHtml(item.notes || '') + '</textarea>',
-      '    </div>',
+      '    <div class="form-group"><label class="label">' + t('rates.field.notes', 'Napomena') + '</label>',
+      '      <textarea class="textarea" name="notes">' + global.utils.escapeHtml(item.notes || '') + '</textarea></div>',
       '    <div class="form-error" id="rateFormError"></div>',
       '    <div class="modal-actions">',
       '      <button type="button" class="btn btn-secondary" id="rateCancel">' + t('common.cancel', 'Otkaži') + '</button>',
@@ -1913,30 +1639,23 @@
       const total = global.utils.parseAmount(totalAmountInput.value);
       const n = Number(installmentsInput.value) || 0;
       if (total > 0 && n > 0) {
-        const monthly = total / n;
-        previewEl.innerHTML = '<span class="preview-label">' + t('rates.monthlyPreview', 'Mesečna rata') + ':</span> ' +
-          '<span class="preview-value">' + formatAmount(monthly) + '</span>';
+        previewEl.innerHTML = '<span class="preview-label">' + t('rates.monthlyPreview', 'Mesečna rata') + ':</span> <span class="preview-value">' + formatAmount(total / n) + '</span>';
       } else {
         previewEl.innerHTML = '';
       }
     }
-
     totalAmountInput.addEventListener('input', updatePreview);
     installmentsInput.addEventListener('input', updatePreview);
     updatePreview();
 
     formOverlay.querySelector('#rateCancel').addEventListener('click', closeForm);
-    formOverlay.addEventListener('click', function (e) {
-      if (e.target === formOverlay) closeForm();
-    });
+    formOverlay.addEventListener('click', function (e) { if (e.target === formOverlay) closeForm(); });
     formOverlay.querySelector('#rateForm').addEventListener('submit', function (e) {
       e.preventDefault();
       submitRateForm(formOverlay);
     });
 
-    requestAnimationFrame(function () {
-      formOverlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { formOverlay.classList.add('show'); });
   }
 
   function submitRateForm(overlay) {
@@ -1961,24 +1680,11 @@
       active: true
     };
 
-    if (!data.name) {
-      errEl.textContent = t('rates.err.name', 'Naziv je obavezan.');
-      return;
-    }
-    if (!data.totalAmount || data.totalAmount <= 0) {
-      errEl.textContent = t('rates.err.amount', 'Ukupan iznos mora biti veći od 0.');
-      return;
-    }
-    if (!data.totalInstallments || data.totalInstallments <= 0) {
-      errEl.textContent = t('rates.err.total', 'Broj rata je obavezan.');
-      return;
-    }
-    if (data.paidInstallments > data.totalInstallments) {
-      data.paidInstallments = data.totalInstallments;
-    }
-    if (data.paidInstallments >= data.totalInstallments) {
-      data.active = false;
-    }
+    if (!data.name) { errEl.textContent = t('rates.err.name', 'Naziv je obavezan.'); return; }
+    if (!data.totalAmount || data.totalAmount <= 0) { errEl.textContent = t('rates.err.amount', 'Iznos mora biti veći od 0.'); return; }
+    if (!data.totalInstallments || data.totalInstallments <= 0) { errEl.textContent = t('rates.err.total', 'Broj rata je obavezan.'); return; }
+    if (data.paidInstallments > data.totalInstallments) data.paidInstallments = data.totalInstallments;
+    if (data.paidInstallments >= data.totalInstallments) data.active = false;
 
     let record;
     if (state.editingRateId) {
@@ -2021,26 +1727,15 @@
       '  <h3 class="modal-title">' + global.utils.escapeHtml(r.name || '') + '</h3>',
       r.bank ? '  <p class="text-muted text-sm" style="margin-bottom: 0.75rem;">' + global.utils.escapeHtml(r.bank) + '</p>' : '',
       '  <div class="rate-progress" style="margin-bottom: 1rem;">',
-      '    <div class="rate-progress-bar">',
-      '      <div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div>',
-      '    </div>',
-      '    <div class="rate-progress-label">',
-      '      <span>' + progress.paid + ' / ' + progress.total + ' ' + t('rates.installments', 'rata') + '</span>',
-      '      <span>' + progress.percent + '%</span>',
-      '    </div>',
+      '    <div class="rate-progress-bar"><div class="rate-progress-fill" style="width: ' + progress.percent + '%"></div></div>',
+      '    <div class="rate-progress-label"><span>' + progress.paid + ' / ' + progress.total + '</span><span>' + progress.percent + '%</span></div>',
       '  </div>',
       '  <div class="detail-row"><span class="detail-label">' + t('rates.field.totalAmount', 'Ukupno') + '</span><span class="detail-value">' + formatAmount(r.totalAmount) + ' ' + flag + ' ' + currency + '</span></div>',
       '  <div class="detail-row"><span class="detail-label">' + t('rates.field.paidAmount', 'Plaćeno') + '</span><span class="detail-value">' + formatAmount(paid) + ' ' + flag + ' ' + currency + '</span></div>',
       '  <div class="detail-row"><span class="detail-label">' + t('rates.remaining', 'Ostalo') + '</span><span class="detail-value">' + formatAmount(remaining) + ' ' + flag + ' ' + currency + '</span></div>',
       '  <div class="detail-row"><span class="detail-label">' + t('rates.monthly', 'Mesečno') + '</span><span class="detail-value">' + formatAmount(monthly) + ' ' + flag + ' ' + currency + '</span></div>',
-      r.dayOfMonth ? '  <div class="detail-row"><span class="detail-label">' + t('rates.field.dayOfMonth', 'Dan u mesecu') + '</span><span class="detail-value">' + r.dayOfMonth + '.</span></div>' : '',
-      r.startDate ? '  <div class="detail-row"><span class="detail-label">' + t('rates.field.startDate', 'Početak') + '</span><span class="detail-value">' + global.utils.formatDate(r.startDate) + '</span></div>' : '',
-      r.notes ? '  <div class="detail-row" style="flex-direction: column; align-items: flex-start;"><span class="detail-label">' + t('rates.field.notes', 'Napomena') + '</span><span class="detail-value" style="text-align: left;">' + global.utils.escapeHtml(r.notes) + '</span></div>' : '',
       status === 'active'
-        ? '  <button type="button" class="btn btn-primary btn-block rate-pay-big" id="rateDetailPay" style="margin-top: 1rem;">' +
-            '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> ' +
-            t('rates.payNowBig', 'Plati sledeću ratu') + ' (' + formatAmount(monthly) + ' ' + flag + ')' +
-          '</button>'
+        ? '  <button type="button" class="btn btn-primary btn-block rate-pay-big" id="rateDetailPay" style="margin-top: 1rem;">✓ ' + t('rates.payNowBig', 'Plati sledeću ratu') + '</button>'
         : '  <div class="rate-done-badge" style="margin-top: 1rem; text-align: center;">✓ ' + t('rates.paidFull', 'Otplaćeno') + '</div>',
       '  <div class="modal-actions">',
       '    <button type="button" class="btn btn-secondary" id="rateDetailClose">' + t('common.close', 'Zatvori') + '</button>',
@@ -2051,13 +1746,8 @@
     ].join('');
 
     document.body.appendChild(overlay);
-
-    overlay.querySelector('#rateDetailClose').addEventListener('click', function () {
-      document.body.removeChild(overlay);
-    });
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) document.body.removeChild(overlay);
-    });
+    overlay.querySelector('#rateDetailClose').addEventListener('click', function () { document.body.removeChild(overlay); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
     overlay.querySelector('#rateDetailEdit').addEventListener('click', function () {
       document.body.removeChild(overlay);
       openRateForm(r);
@@ -2073,28 +1763,19 @@
         });
       });
     });
-
     const payBtn = overlay.querySelector('#rateDetailPay');
-    if (payBtn) {
-      payBtn.addEventListener('click', function () {
-        document.body.removeChild(overlay);
-        payRate(r, null);
-      });
-    }
-
-    requestAnimationFrame(function () {
-      overlay.classList.add('show');
+    if (payBtn) payBtn.addEventListener('click', function () {
+      document.body.removeChild(overlay);
+      payRate(r, null);
     });
+    requestAnimationFrame(function () { overlay.classList.add('show'); });
   }
 
-  /* =========================================================
-     FORMA — ČEK
-     ========================================================= */
+  /* ---------- FORMA — ČEK ---------- */
 
   function openCheckForm() {
     if (formOverlay) return;
     state.editingCheckId = null;
-
     const today = global.utils.todayISO();
 
     formOverlay = document.createElement('div');
@@ -2111,60 +1792,32 @@
       '<div class="modal-sheet">',
       '  <h3 class="modal-title">' + t('checks.new', 'Nova kupovina čekovima') + '</h3>',
       '  <form id="checkForm" novalidate>',
-
-      '    <div class="form-group">',
-      '      <label class="label">' + t('checks.field.purpose', 'Šta je kupljeno') + ' *</label>',
-      '      <input class="input" type="text" name="purpose" required placeholder="' + t('checks.field.purposePlaceholder', 'npr. Patike') + '" />',
-      '    </div>',
-
-      '    <div class="form-group">',
-      '      <label class="label">' + t('checks.field.seller', 'Gde je kupljeno') + '</label>',
-      '      <input class="input" type="text" name="seller" placeholder="' + t('checks.field.sellerPlaceholder', 'npr. N Sport') + '" />',
-      '    </div>',
-
-      '    <div class="form-group">',
-      '      <label class="label">' + t('checks.field.amountMode', 'Način unosa iznosa') + '</label>',
+      '    <div class="form-group"><label class="label">' + t('checks.field.purpose', 'Šta je kupljeno') + ' *</label>',
+      '      <input class="input" type="text" name="purpose" required /></div>',
+      '    <div class="form-group"><label class="label">' + t('checks.field.seller', 'Gde je kupljeno') + '</label>',
+      '      <input class="input" type="text" name="seller" /></div>',
+      '    <div class="form-group"><label class="label">' + t('checks.field.amountMode', 'Način unosa iznosa') + '</label>',
       '      <div class="amount-mode-toggle" id="amountModeToggle">',
       '        <button type="button" class="amt-mode-btn active" data-mode="total">' + t('checks.mode.total', 'Ukupan iznos') + '</button>',
       '        <button type="button" class="amt-mode-btn" data-mode="per-check">' + t('checks.mode.perCheck', 'Iznos po čeku') + '</button>',
-      '      </div>',
-      '    </div>',
-
+      '      </div></div>',
       '    <div class="amount-row">',
-      '      <div class="form-group">',
-      '        <label class="label" id="amountLabel">' + t('checks.field.totalAmount', 'Ukupan iznos') + ' *</label>',
-      '        <input class="input" type="text" inputmode="decimal" name="amount" required placeholder="0,00" />',
-      '      </div>',
-      '      <div class="form-group currency-select">',
-      '        <label class="label">' + t('checks.field.currency', 'Valuta') + '</label>',
-      '        <select class="select" name="currency">' + currencyOptions + '</select>',
-      '      </div>',
+      '      <div class="form-group"><label class="label" id="amountLabel">' + t('checks.field.totalAmount', 'Ukupan iznos') + ' *</label>',
+      '        <input class="input" type="text" inputmode="decimal" name="amount" required placeholder="0,00" /></div>',
+      '      <div class="form-group currency-select"><label class="label">' + t('checks.field.currency', 'Valuta') + '</label>',
+      '        <select class="select" name="currency">' + currencyOptions + '</select></div>',
       '    </div>',
-
       '    <div class="form-row">',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('checks.field.numberOfChecks', 'Broj čekova') + ' *</label>',
-      '        <input class="input" type="number" min="1" max="60" name="numberOfChecks" required value="1" />',
-      '      </div>',
-      '      <div class="form-group">',
-      '        <label class="label">' + t('checks.field.firstDate', 'Prva realizacija') + ' *</label>',
+      '      <div class="form-group"><label class="label">' + t('checks.field.numberOfChecks', 'Broj čekova') + ' *</label>',
+      '        <input class="input" type="number" min="1" max="60" name="numberOfChecks" required value="1" /></div>',
+      '      <div class="form-group"><label class="label">' + t('checks.field.firstDate', 'Prva realizacija') + ' *</label>',
       global.utils.dateInputHTML('firstDate', today, { required: true }),
       '      </div>',
       '    </div>',
-
       '    <div class="check-monthly-preview" id="monthlyPreview"></div>',
-
-      '    <div class="form-group">',
-      '      <label class="label">',
-      '        <input type="checkbox" name="autoRealize" checked style="margin-right:0.4rem;" />',
-      '        ' + t('checks.field.autoRealize', 'Automatski označi kao realizovano na datum') + '</label>',
-      '    </div>',
-
-      '    <div class="form-group">',
-      '      <label class="label">' + t('checks.field.note', 'Napomena') + '</label>',
-      '      <textarea class="textarea" name="note"></textarea>',
-      '    </div>',
-
+      '    <div class="form-group"><label class="label"><input type="checkbox" name="autoRealize" checked style="margin-right:0.4rem;" /> ' + t('checks.field.autoRealize', 'Automatski označi kao realizovano') + '</label></div>',
+      '    <div class="form-group"><label class="label">' + t('checks.field.note', 'Napomena') + '</label>',
+      '      <textarea class="textarea" name="note"></textarea></div>',
       '    <div class="form-error" id="checkFormError"></div>',
       '    <div class="modal-actions">',
       '      <button type="button" class="btn btn-secondary" id="checkCancel">' + t('common.cancel', 'Otkaži') + '</button>',
@@ -2187,14 +1840,8 @@
     toggleBtns.forEach(function (btn) {
       btn.addEventListener('click', function () {
         amountMode = btn.getAttribute('data-mode');
-        toggleBtns.forEach(function (b) {
-          b.classList.toggle('active', b === btn);
-        });
-        if (amountMode === 'total') {
-          amountLabel.textContent = t('checks.field.totalAmount', 'Ukupan iznos') + ' *';
-        } else {
-          amountLabel.textContent = t('checks.field.perCheckAmount', 'Iznos po čeku') + ' *';
-        }
+        toggleBtns.forEach(function (b) { b.classList.toggle('active', b === btn); });
+        amountLabel.textContent = (amountMode === 'total' ? t('checks.field.totalAmount', 'Ukupan iznos') : t('checks.field.perCheckAmount', 'Iznos po čeku')) + ' *';
         updatePreview();
       });
     });
@@ -2204,34 +1851,23 @@
       const n = Number(numberOfChecksInput.value) || 0;
       if (val > 0 && n > 0) {
         if (amountMode === 'total') {
-          const monthly = val / n;
-          previewEl.innerHTML = '<span class="preview-label">' + t('checks.monthlyPreview', 'Mesečno') + ':</span> ' +
-            '<span class="preview-value">' + formatAmount(monthly) + '</span>';
+          previewEl.innerHTML = '<span class="preview-label">' + t('checks.monthlyPreview', 'Mesečno') + ':</span> <span class="preview-value">' + formatAmount(val / n) + '</span>';
         } else {
-          const total = val * n;
-          previewEl.innerHTML = '<span class="preview-label">' + t('checks.totalPreview', 'Ukupno') + ':</span> ' +
-            '<span class="preview-value">' + formatAmount(total) + '</span>';
+          previewEl.innerHTML = '<span class="preview-label">' + t('checks.totalPreview', 'Ukupno') + ':</span> <span class="preview-value">' + formatAmount(val * n) + '</span>';
         }
-      } else {
-        previewEl.innerHTML = '';
-      }
+      } else previewEl.innerHTML = '';
     }
-
     amountInput.addEventListener('input', updatePreview);
     numberOfChecksInput.addEventListener('input', updatePreview);
 
     formOverlay.querySelector('#checkCancel').addEventListener('click', closeForm);
-    formOverlay.addEventListener('click', function (e) {
-      if (e.target === formOverlay) closeForm();
-    });
+    formOverlay.addEventListener('click', function (e) { if (e.target === formOverlay) closeForm(); });
     formOverlay.querySelector('#checkForm').addEventListener('submit', function (e) {
       e.preventDefault();
       submitCheckForm(formOverlay, function () { return amountMode; });
     });
 
-    requestAnimationFrame(function () {
-      formOverlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { formOverlay.classList.add('show'); });
   }
 
   function submitCheckForm(overlay, getAmountMode) {
@@ -2249,31 +1885,14 @@
     const note = form.note.value.trim();
     const mode = getAmountMode ? getAmountMode() : 'total';
 
-    if (!purpose) {
-      errEl.textContent = t('checks.err.purpose', 'Opis je obavezan.');
-      return;
-    }
-    if (!rawAmount || rawAmount <= 0) {
-      errEl.textContent = t('checks.err.amount', 'Iznos mora biti veći od 0.');
-      return;
-    }
-    if (numberOfChecks <= 0 || numberOfChecks > 60) {
-      errEl.textContent = t('checks.err.number', 'Broj čekova mora biti između 1 i 60.');
-      return;
-    }
-    if (!firstDate) {
-      errEl.textContent = t('checks.err.date', 'Datum prve realizacije je obavezan.');
-      return;
-    }
+    if (!purpose) { errEl.textContent = t('checks.err.purpose', 'Opis je obavezan.'); return; }
+    if (!rawAmount || rawAmount <= 0) { errEl.textContent = t('checks.err.amount', 'Iznos mora biti veći od 0.'); return; }
+    if (numberOfChecks <= 0 || numberOfChecks > 60) { errEl.textContent = t('checks.err.number', 'Broj čekova mora biti između 1 i 60.'); return; }
+    if (!firstDate) { errEl.textContent = t('checks.err.date', 'Datum je obavezan.'); return; }
 
     let monthlyAmount, totalAmount;
-    if (mode === 'total') {
-      totalAmount = rawAmount;
-      monthlyAmount = rawAmount / numberOfChecks;
-    } else {
-      monthlyAmount = rawAmount;
-      totalAmount = rawAmount * numberOfChecks;
-    }
+    if (mode === 'total') { totalAmount = rawAmount; monthlyAmount = rawAmount / numberOfChecks; }
+    else { monthlyAmount = rawAmount; totalAmount = rawAmount * numberOfChecks; }
 
     const purchaseId = global.utils.uid('purchase');
     const promises = [];
@@ -2324,11 +1943,8 @@
       '  <h3 class="modal-title">' + global.utils.escapeHtml(c.purpose || '') + '</h3>',
       c.seller ? '  <p class="text-muted text-sm" style="margin-bottom: 0.75rem;">' + global.utils.escapeHtml(c.seller) + '</p>' : '',
       '  <div class="detail-row"><span class="detail-label">' + t('checks.field.amount', 'Iznos') + '</span><span class="detail-value">' + formatAmount(c.amount) + ' ' + flag + ' ' + currency + '</span></div>',
-      c.totalAmount ? '  <div class="detail-row"><span class="detail-label">' + t('checks.field.totalAmount', 'Ukupan iznos') + '</span><span class="detail-value">' + formatAmount(c.totalAmount) + ' ' + flag + ' ' + currency + '</span></div>' : '',
       c.checkIndex ? '  <div class="detail-row"><span class="detail-label">' + t('checks.field.checkNumber', 'Ček') + '</span><span class="detail-value">' + c.checkIndex + ' / ' + c.totalChecks + '</span></div>' : '',
       c.realizeDate ? '  <div class="detail-row"><span class="detail-label">' + t('checks.field.realizeDate', 'Datum realizacije') + '</span><span class="detail-value">' + global.utils.formatDate(c.realizeDate) + '</span></div>' : '',
-      '  <div class="detail-row"><span class="detail-label">' + t('checks.field.status', 'Status') + '</span><span class="detail-value">' + (c.realized ? '✓ ' + t('checks.status.realized', 'Realizovan') : t('checks.status.pending', 'Nerealizovan')) + '</span></div>',
-      c.note ? '  <div class="detail-row" style="flex-direction: column; align-items: flex-start;"><span class="detail-label">' + t('checks.field.note', 'Napomena') + '</span><span class="detail-value" style="text-align: left;">' + global.utils.escapeHtml(c.note) + '</span></div>' : '',
       '  <div class="modal-actions">',
       '    <button type="button" class="btn btn-secondary" id="checkDetailClose">' + t('common.close', 'Zatvori') + '</button>',
       c.realized
@@ -2340,44 +1956,35 @@
     ].join('');
 
     document.body.appendChild(overlay);
-
-    overlay.querySelector('#checkDetailClose').addEventListener('click', function () {
-      document.body.removeChild(overlay);
-    });
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) document.body.removeChild(overlay);
-    });
+    overlay.querySelector('#checkDetailClose').addEventListener('click', function () { document.body.removeChild(overlay); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
 
     const markBtn = overlay.querySelector('#checkDetailMark');
-    if (markBtn) {
-      markBtn.addEventListener('click', function () {
-        c.realized = true;
-        c.realizedAt = new Date().toISOString();
-        global.storage.save(STORE_CHECKS, c).then(function () {
-          if (global.home) global.home.showToast(t('checks.realizedToast', 'Ček realizovan!'));
-          document.body.removeChild(overlay);
-          loadAll().then(function () {
-            const view = document.getElementById('view-bills');
-            if (view) refreshAll(view);
-          });
+    if (markBtn) markBtn.addEventListener('click', function () {
+      c.realized = true;
+      c.realizedAt = new Date().toISOString();
+      global.storage.save(STORE_CHECKS, c).then(function () {
+        if (global.home) global.home.showToast(t('checks.realizedToast', 'Ček realizovan!'));
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
         });
       });
-    }
+    });
 
     const unmarkBtn = overlay.querySelector('#checkDetailUnmark');
-    if (unmarkBtn) {
-      unmarkBtn.addEventListener('click', function () {
-        c.realized = false;
-        c.realizedAt = null;
-        global.storage.save(STORE_CHECKS, c).then(function () {
-          document.body.removeChild(overlay);
-          loadAll().then(function () {
-            const view = document.getElementById('view-bills');
-            if (view) refreshAll(view);
-          });
+    if (unmarkBtn) unmarkBtn.addEventListener('click', function () {
+      c.realized = false;
+      c.realizedAt = null;
+      global.storage.save(STORE_CHECKS, c).then(function () {
+        document.body.removeChild(overlay);
+        loadAll().then(function () {
+          const view = document.getElementById('view-bills');
+          if (view) refreshAll(view);
         });
       });
-    }
+    });
 
     overlay.querySelector('#checkDetailDelete').addEventListener('click', function () {
       const ok = global.confirm(t('checks.deleteConfirm', 'Obrisati ovaj ček?'));
@@ -2391,9 +1998,7 @@
       });
     });
 
-    requestAnimationFrame(function () {
-      overlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { overlay.classList.add('show'); });
   }
 
   /* ---------- FAB ---------- */
@@ -2438,7 +2043,6 @@
   function refreshAll(view) {
     if (!view) view = document.getElementById('view-bills');
     if (!view) return;
-
     view.innerHTML = '';
     const header = buildHeader();
     view.appendChild(header);
@@ -2461,20 +2065,45 @@
       '    <p class="text-muted text-sm">' + t('bills.subtitle', 'Arhiva računa i statusa plaćanja.') + '</p>',
       '  </div>',
       '</div>',
-      '<button type="button" class="icon-btn" data-module-lock="bills" title="' + t('pin.lock', 'Zaključaj') + '">',
-      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
-      '</button>'
+      '<div class="header-actions-inline">',
+      '  <button type="button" class="icon-btn" id="billsHelp" aria-label="' + t('common.help', 'Pomoć') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+      '  </button>',
+      '  <button type="button" class="icon-btn" data-module-lock="bills" title="' + t('pin.lock', 'Zaključaj') + '">',
+      '    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>',
+      '  </button>',
+      '</div>'
     ].join('');
 
-    const backBtn = header.querySelector('#billsBack');
-    backBtn.addEventListener('click', function () {
+    header.querySelector('#billsBack').addEventListener('click', function () {
       global.router.navigate('home');
+    });
+
+    header.querySelector('#billsHelp').addEventListener('click', function () {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = [
+        '<div class="modal-sheet">',
+        '  <h3 class="modal-title">' + t('bills.help.title', 'Kako rade Računi?') + '</h3>',
+        '  <div class="help-content">',
+        '    <p>' + t('bills.help.p1', 'Ovde vodiš evidenciju svih računa — struja, voda, internet, telefon, kirija...') + '</p>',
+        '    <p>' + t('bills.help.p2', 'Kada označiš račun kao plaćen, trošak se automatski evidentira u modulu Novac (rashod).') + '</p>',
+        '    <p>' + t('bills.help.p3', 'Rate su za kredite i kupovine na rate — pratiš koliko je otplaćeno i koliko je ostalo.') + '</p>',
+        '    <p>' + t('bills.help.p4', 'Čekovi su za kupovinu čekovima — uneseš ukupan iznos i broj čekova, aplikacija automatski prati realizaciju.') + '</p>',
+        '  </div>',
+        '  <div class="modal-actions">',
+        '    <button type="button" class="btn btn-primary btn-block" id="helpClose">' + t('common.close', 'Zatvori') + '</button>',
+        '  </div>',
+        '</div>'
+      ].join('');
+      document.body.appendChild(overlay);
+      overlay.querySelector('#helpClose').addEventListener('click', function () { document.body.removeChild(overlay); });
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
+      requestAnimationFrame(function () { overlay.classList.add('show'); });
     });
 
     return header;
   }
-
-  /* ---------- INIT ---------- */
 
   function init() {
     if (!state.month) state.month = currentMonthISO();
@@ -2529,6 +2158,8 @@
   global.bills = {
     init: init,
     loadAll: loadAll,
+    _state: state,
+    openBillDetail: openBillDetail,
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
     addCustomCategory: addCustomCategory,
