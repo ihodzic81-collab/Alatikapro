@@ -1233,3 +1233,77 @@
     font-size: 0.68rem;
   }
 }
+/* =====================
+   BRZO PLAĆANJE U LISTI
+   ===================== */
+.bill-item-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.bill-item-wrapper .bill-item {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
+.bill-quick-pay {
+  flex: 0 0 auto;
+  width: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #22C55E, #16A34A);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+  cursor: pointer;
+  border: 0;
+}
+
+.bill-quick-pay:hover {
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+}
+
+.bill-quick-pay:active {
+  transform: scale(0.94);
+}
+
+.bill-quick-pay.paying {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.bill-quick-pay svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Header actions */
+.header-actions-inline {
+  display: flex;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.help-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.help-content p {
+  margin-bottom: 0.6rem;
+}
+
+/* Mobile */
+@media (max-width: 360px) {
+  .bill-quick-pay {
+    width: 42px;
+  }
+  .bill-quick-pay svg {
+    width: 18px;
+    height: 18px;
+  }
+}
