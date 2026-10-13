@@ -14,7 +14,6 @@
   const STORE_BUDGETS = 'budgets';
   const LS_CUSTOM_CATS = 'money.customCats';
 
-  /* Kategorije prihoda */
   const INCOME_CATEGORIES = [
     { id: 'salary',       name_sr: 'Plata',                 name_en: 'Salary' },
     { id: 'side',         name_sr: 'Dodatni posao',         name_en: 'Side job' },
@@ -26,7 +25,6 @@
     { id: 'income-other', name_sr: 'Ostali prihodi',        name_en: 'Other income' }
   ];
 
-  /* Kategorije rashoda */
   const EXPENSE_CATEGORIES = [
     { id: 'housing',      name_sr: 'Stanovanje',            name_en: 'Housing' },
     { id: 'utilities',    name_sr: 'Računi i komunalije',   name_en: 'Bills & utilities' },
@@ -46,15 +44,13 @@
   const state = {
     items: [],
     budgets: [],
-    filter: 'all',         /* all | income | expense */
+    filter: 'all',
     search: '',
-    month: null,           /* "YYYY-MM" */
-    categoryFilter: '',    /* '' | categoryId */
+    month: null,
+    categoryFilter: '',
     editingId: null,
     budgetEditing: false
   };
-
-  /* ---------- POMOĆNE ---------- */
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
@@ -139,8 +135,6 @@
     return n.toLocaleString(locale, { maximumFractionDigits: 0 });
   }
 
-  /* ---------- UČITAVANJE ---------- */
-
   function loadAll() {
     return Promise.all([
       global.storage.loadAll(STORE),
@@ -153,8 +147,6 @@
       return state;
     });
   }
-
-  /* ---------- FILTRIRANJE ---------- */
 
   function applyFilter(list) {
     let out = list.slice();
@@ -187,8 +179,6 @@
     return out;
   }
 
-  /* ---------- SAŽETAK MESECA ---------- */
-
   function computeMonthSummary(monthISO) {
     const m = monthISO || state.month || currentMonthISO();
 
@@ -196,7 +186,6 @@
       return (x.date || '').slice(0, 7) === m;
     });
 
-    /* Prihodi */
     const incomeByCurrency = {};
     let incomeTotalRSD = 0;
     monthItems.forEach(function (x) {
@@ -207,7 +196,6 @@
       if (cur === 'RSD') incomeTotalRSD += amt;
     });
 
-    /* Rashodi */
     const expenseByCurrency = {};
     let expenseTotalRSD = 0;
     monthItems.forEach(function (x) {
@@ -218,10 +206,7 @@
       if (cur === 'RSD') expenseTotalRSD += amt;
     });
 
-    /* Diferencija (samo RSD) */
     const balanceRSD = incomeTotalRSD - expenseTotalRSD;
-
-    /* Budžet za mesec */
     const budget = getBudgetForMonth(m);
 
     return {
@@ -266,8 +251,6 @@
     return global.storage.delete(STORE_BUDGETS, existing.id);
   }
 
-  /* ---------- RASHODI PO KATEGORIJI ---------- */
-
   function computeExpenseByCategory(monthISO) {
     const m = monthISO || state.month || currentMonthISO();
     const monthItems = state.items.filter(function (x) {
@@ -284,17 +267,70 @@
       byCat[cat].count += 1;
     });
 
-    /* Sortiraj po iznosu */
     const arr = Object.keys(byCat).map(function (k) { return byCat[k]; });
     arr.sort(function (a, b) { return b.total - a.total; });
 
     return arr;
   }
 
-  /* ---------- RENDER ---------- */
+  /* =========================================================
+     API ZA DRUGE MODULE — Računi
+     ========================================================= */
+
+  /**
+   * Kreira ili ažurira rashod na osnovu plaćenog računa.
+   * Ako račun već ima linkedTxId, ažurira postojeću transakciju.
+   * Inače kreira novu.
+   */
+  function upsertExpenseFromBill(bill) {
+    if (!bill || !bill.id) return Promise.resolve();
+
+    const existing = state.items.find(function (x) {
+      return x.linkedBillId === bill.id;
+    });
+
+    const record = {
+      type: 'expense',
+      name: bill.name || bill.vendor || t('money.fromBill', 'Račun'),
+      amount: Number(bill.amount) || 0,
+      currency: bill.currency || 'RSD',
+      category: 'utilities',
+      date: bill.paidDate || global.utils.todayISO(),
+      note: t('money.fromBillNote', 'Automatski kreirano iz plaćenog računa') + ': ' + (bill.name || ''),
+      paymentMethod: '',
+      linkedBillId: bill.id
+    };
+
+    if (existing) {
+      Object.assign(existing, record);
+      return global.storage.save(STORE, existing);
+    }
+
+    const newRecord = Object.assign({
+      id: global.utils.uid('tx'),
+      createdAt: new Date().toISOString()
+    }, record);
+
+    return global.storage.save(STORE, newRecord);
+  }
+
+  /**
+   * Briše transakciju povezanu sa računom.
+   */
+  function removeExpenseByBillId(billId) {
+    if (!billId) return Promise.resolve();
+    const existing = state.items.find(function (x) {
+      return x.linkedBillId === billId;
+    });
+    if (!existing) return Promise.resolve();
+    return global.storage.delete(STORE, existing.id);
+  }
+
+  /* =========================================================
+     RENDER
+     ========================================================= */
 
   function renderInto(view) {
-    /* Header */
     let header = view.querySelector('.module-header');
     if (!header) {
       view.innerHTML = '';
@@ -302,12 +338,10 @@
       view.appendChild(header);
     }
 
-    /* Očisti sve posle headera */
     while (header.nextSibling) {
       view.removeChild(header.nextSibling);
     }
 
-    /* Tabovi: Prihodi/Rashodi | Budžet | Izveštaj */
     const tabs = document.createElement('div');
     tabs.className = 'money-tabs';
     const tabDefs = [
@@ -333,7 +367,6 @@
     });
     view.appendChild(tabs);
 
-    /* Sadržaj */
     const content = document.createElement('div');
     content.className = 'money-content';
     view.appendChild(content);
@@ -356,24 +389,12 @@
     }
   }
 
-  /* =========================================================
-     VIEW 1 — LISTA TRANSAKCIJA
-     ========================================================= */
-
   function renderListView(view) {
-    /* Mesec nav */
     buildMonthNav(view);
-
-    /* Sažetak */
     buildMoneySummary(view);
-
-    /* Filteri */
     buildMoneyFilters(view);
-
-    /* Pretraga */
     buildMoneySearch(view);
 
-    /* Lista */
     const listWrap = document.createElement('div');
     listWrap.className = 'money-list';
     view.appendChild(listWrap);
@@ -434,7 +455,6 @@
     ].join('');
     view.appendChild(box);
 
-    /* Budžet indikator */
     if (s.budget && s.budget.amount > 0) {
       const used = s.expenseTotalRSD;
       const total = s.budget.amount;
@@ -521,7 +541,6 @@
       return;
     }
 
-    /* Grupisanje po datumu */
     const groups = {};
     filtered.forEach(function (x) {
       const d = x.date || '';
@@ -570,7 +589,6 @@
     const item = document.createElement('div');
     item.className = 'money-item ' + (isIncome ? 'income' : 'expense');
 
-    /* Ikonica */
     const iconWrap = document.createElement('div');
     iconWrap.className = 'money-item-icon ' + (isIncome ? 'income' : 'expense');
     iconWrap.innerHTML = isIncome
@@ -578,7 +596,6 @@
       : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>';
     item.appendChild(iconWrap);
 
-    /* Body */
     const body = document.createElement('div');
     body.className = 'money-item-body';
 
@@ -595,13 +612,11 @@
 
     item.appendChild(body);
 
-    /* Amount */
     const amount = document.createElement('div');
     amount.className = 'money-item-amount ' + (isIncome ? 'income' : 'expense');
     amount.textContent = (isIncome ? '+' : '−') + formatAmount(x.amount) + ' ' + (x.currency || 'RSD');
     item.appendChild(amount);
 
-    /* Klik na item → detalji/izmena */
     item.addEventListener('click', function () {
       openTransactionDetail(x);
     });
@@ -614,12 +629,10 @@
      ========================================================= */
 
   function renderBudgetView(view) {
-    /* Mesec nav */
     buildMonthNav(view);
 
     const s = computeMonthSummary();
 
-    /* Trenutni budžet */
     const box = document.createElement('div');
     box.className = 'money-budget-box';
 
@@ -671,7 +684,6 @@
 
     view.appendChild(box);
 
-    /* Dugme postavi/promeni budžet */
     const btnWrap = document.createElement('div');
     btnWrap.className = 'budget-action';
     const btn = document.createElement('button');
@@ -686,7 +698,6 @@
     btnWrap.appendChild(btn);
     view.appendChild(btnWrap);
 
-    /* Top kategorije */
     const byCat = computeExpenseByCategory();
     if (byCat.length > 0) {
       const title = document.createElement('h3');
@@ -719,7 +730,6 @@
      ========================================================= */
 
   function renderReportsView(view) {
-    /* Godina nav */
     const year = state.month ? Number(state.month.split('-')[0]) : new Date().getFullYear();
 
     const yearNav = document.createElement('div');
@@ -745,7 +755,6 @@
     });
     view.appendChild(yearNav);
 
-    /* Godišnji pregled */
     const yearStr = String(year);
     const yearItems = state.items.filter(function (x) {
       return (x.date || '').slice(0, 4) === yearStr;
@@ -777,7 +786,6 @@
     ].join('');
     view.appendChild(summary);
 
-    /* Grafikon po mesecima (12 meseci) */
     const chartTitle = document.createElement('h3');
     chartTitle.className = 'money-section-title';
     chartTitle.textContent = t('money.report.monthlyChart', 'Mesečni pregled') + ' ' + year;
@@ -826,7 +834,6 @@
     });
     view.appendChild(chart);
 
-    /* Legenda */
     const legend = document.createElement('div');
     legend.className = 'report-legend';
     legend.innerHTML = [
@@ -835,7 +842,6 @@
     ].join('');
     view.appendChild(legend);
 
-    /* Rashodi po kategorijama za godinu */
     const catTitle = document.createElement('h3');
     catTitle.className = 'money-section-title';
     catTitle.textContent = t('money.report.byCategory', 'Rashodi po kategorijama') + ' ' + year;
@@ -878,7 +884,9 @@
       });
       view.appendChild(list);
     }
-  }  /* =========================================================
+  }
+
+  /* =========================================================
      FORMA — TRANSAKCIJA
      ========================================================= */
 
@@ -911,7 +919,6 @@
         : t('money.new', 'Nova transakcija')) + '</h3>',
       '  <form id="moneyForm" novalidate>',
 
-      /* Tip */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.type', 'Tip') + ' *</label>',
       '      <div class="money-type-toggle" id="typeToggle">',
@@ -926,7 +933,6 @@
       '      </div>',
       '    </div>',
 
-      /* Iznos + valuta */
       '    <div class="amount-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('money.field.amount', 'Iznos') + ' *</label>',
@@ -944,25 +950,21 @@
       '      </div>',
       '    </div>',
 
-      /* Naziv */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.name', 'Naziv') + ' *</label>',
       '      <input class="input" type="text" name="name" required value="' + global.utils.escapeHtml(item.name || '') + '" placeholder="' + t('money.field.namePlaceholder', 'npr. Plata za oktobar') + '" />',
       '    </div>',
 
-      /* Kategorija */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.category', 'Kategorija') + '</label>',
       '      <select class="select" name="category" id="categorySelect"></select>',
       '    </div>',
 
-      /* Datum */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.date', 'Datum') + ' *</label>',
       global.utils.dateInputHTML('date', item.date || global.utils.todayISO(), { required: true }),
       '    </div>',
 
-      /* Način plaćanja */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.paymentMethod', 'Način plaćanja') + '</label>',
       '      <select class="select" name="paymentMethod">',
@@ -975,7 +977,6 @@
       '      </select>',
       '    </div>',
 
-      /* Napomena */
       '    <div class="form-group">',
       '      <label class="label">' + t('money.field.note', 'Napomena') + '</label>',
       '      <textarea class="textarea" name="note">' + global.utils.escapeHtml(item.note || '') + '</textarea>',
@@ -993,7 +994,6 @@
     document.body.appendChild(formOverlay);
     global.utils.bindDateInputs(formOverlay);
 
-    /* Kategorije — dinamičke */
     let currentType = item.type || 'expense';
     const categorySelect = formOverlay.querySelector('#categorySelect');
 
@@ -1008,7 +1008,6 @@
     }
     refreshCategories();
 
-    /* Type toggle */
     const typeBtns = formOverlay.querySelectorAll('.money-type-btn');
     typeBtns.forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1016,7 +1015,6 @@
         typeBtns.forEach(function (b) {
           b.classList.toggle('active', b === btn);
         });
-        /* Reset kategorije pri promeni tipa */
         item.category = '';
         refreshCategories();
       });
@@ -1091,10 +1089,6 @@
     });
   }
 
-  /* =========================================================
-     FORMA — BUDŽET
-     ========================================================= */
-
   function openBudgetForm(existing) {
     if (formOverlay) return;
 
@@ -1168,10 +1162,6 @@
     });
   }
 
-  /* =========================================================
-     DETALJI TRANSAKCIJE
-     ========================================================= */
-
   function openTransactionDetail(x) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -1237,10 +1227,6 @@
     }, 200);
   }
 
-  /* =========================================================
-     FAB
-     ========================================================= */
-
   function buildFAB() {
     let fab = document.getElementById('moneyFab');
     if (!fab) {
@@ -1260,13 +1246,8 @@
     const fab = document.getElementById('moneyFab');
     if (!fab) return;
     const route = global.router && global.router.current ? global.router.current() : 'home';
-    /* FAB se prikazuje samo na tabu "list" */
     fab.style.display = (route === 'money' && state.view === 'list') ? '' : 'none';
   }
-
-  /* =========================================================
-     HEADER
-     ========================================================= */
 
   function buildHeader() {
     const header = document.createElement('div');
@@ -1296,10 +1277,6 @@
 
     return header;
   }
-
-  /* =========================================================
-     INIT
-     ========================================================= */
 
   function init() {
     if (!state.month) state.month = currentMonthISO();
@@ -1352,35 +1329,11 @@
     }
   }
 
-  /* =========================================================
-     API ZA DRUGE MODULE
-     ========================================================= */
-
-  /**
-   * Kreira rashod na osnovu plaćenog računa.
-   * Poziva se iz modula Računi kada korisnik čekira "Plaćeno".
-   */
-  function createExpenseFromBill(bill) {
-    const record = {
-      id: global.utils.uid('tx'),
-      type: 'expense',
-      name: bill.name || bill.vendor || t('money.fromBill', 'Račun'),
-      amount: Number(bill.amount) || 0,
-      currency: bill.currency || 'RSD',
-      category: 'utilities',
-      date: bill.paidDate || global.utils.todayISO(),
-      note: t('money.fromBillNote', 'Automatski kreirano iz plaćenog računa') + ': ' + (bill.name || ''),
-      paymentMethod: '',
-      linkedBillId: bill.id,
-      createdAt: new Date().toISOString()
-    };
-    return global.storage.save(STORE, record);
-  }
-
   global.money = {
     init: init,
     loadAll: loadAll,
-    createExpenseFromBill: createExpenseFromBill,
+    upsertExpenseFromBill: upsertExpenseFromBill,
+    removeExpenseByBillId: removeExpenseByBillId,
     INCOME_CATEGORIES: INCOME_CATEGORIES.slice(),
     EXPENSE_CATEGORIES: EXPENSE_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
