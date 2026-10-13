@@ -1010,3 +1010,69 @@
     font-size: 0.82rem;
   }
 }
+/* =====================
+   HEADER ACTIONS — HORIZONTALNO
+   ===================== */
+.header-actions-inline {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.header-actions-inline .icon-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--color-text);
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+  border: 0;
+  cursor: pointer;
+}
+
+.header-actions-inline .icon-btn:hover {
+  background-color: var(--color-surface-2);
+}
+
+.module-header {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.7rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: 0.7rem;
+  flex-wrap: nowrap;
+}
+
+.module-title-wrap {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.module-title-wrap > div:last-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.module-title-wrap h2 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.module-title-wrap p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
