@@ -1,6 +1,7 @@
 /* =========================================================
    ALATIKA PRO — home.js
    Početna strana sa pametnim vidžetima (horizontalni skrol).
+   Futer brze akcije: Novi podsetnik / račun / dokument / transakcija.
    ========================================================= */
 
 (function (global) {
@@ -42,16 +43,16 @@
   const MODULE_DEFS = [
     { key: 'reminders', route: 'reminders', iconColor: 'reminders',
       titleKey: 'nav.reminders', titleFallback: 'Podsetnici',
-      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>' },
+      icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>' },
     { key: 'bills', route: 'bills', iconColor: 'bills',
       titleKey: 'nav.bills', titleFallback: 'Računi',
-      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>' },
+      icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>' },
     { key: 'items', route: 'items', iconColor: 'items',
       titleKey: 'nav.items', titleFallback: 'Moje stvari',
-      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' },
+      icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' },
     { key: 'money', route: 'money', iconColor: 'money',
       titleKey: 'nav.money', titleFallback: 'Novac',
-      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>' }
+      icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>' }
   ];
 
   const LOCK_SVG =
@@ -124,7 +125,6 @@
     const reminders = (global.reminders && global.reminders._state && global.reminders._state.items) || [];
     const today = global.utils.todayISO();
 
-    /* Uzmi sve aktivne podsetnike koji su danas, sutra ili prekosutra */
     const upcoming = reminders.filter(function (r) {
       if (r.done) return false;
       const eff = global.reminders.effectiveDate ? global.reminders.effectiveDate(r) : r.date;
@@ -257,7 +257,6 @@
       '<div class="hw-scroll">' + chipsHTML + '</div>'
     ].join('');
 
-    /* Klik na račun → otvori detalje */
     card.querySelectorAll('[data-bill-id]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -383,7 +382,6 @@
 
     parent.appendChild(card);
 
-    /* Učitaj kurseve i prikaži */
     if (global.nbs) {
       global.nbs.getRates().then(function () {
         const scroll = document.getElementById('hwRatesScroll');
@@ -414,7 +412,7 @@
     }
   }
 
-  /* ---------- BRZE AKCIJE ---------- */
+  /* ---------- BRZE AKCIJE (futer + interna obrada) ---------- */
 
   const QUICK_ACTIONS = [
     { key: 'add-reminder', labelKey: 'home.action.addReminder', labelFallback: 'Novi podsetnik',
@@ -428,22 +426,7 @@
   ];
 
   function renderQuickActions() {
-    const wrap = document.getElementById('homeActions');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-
-    QUICK_ACTIONS.forEach(function (action) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'quick-action';
-      btn.setAttribute('data-action', action.key);
-      btn.innerHTML = [
-        '<span class="qa-icon" aria-hidden="true">' + action.icon + '</span>',
-        '<span class="qa-label">' + tr(action.labelKey, action.labelFallback) + '</span>'
-      ].join('');
-      btn.addEventListener('click', function () { handleQuickAction(action.key); });
-      wrap.appendChild(btn);
-    });
+    /* Zadržano zbog kompatibilnosti — futer sada prikazuje akcije. */
   }
 
   function handleQuickAction(key) {
@@ -454,7 +437,22 @@
       'add-money': 'money'
     };
     const r = routeByAction[key];
-    if (r) global.router.navigate(r);
+    if (!r) return;
+
+    global.router.navigate(r);
+
+    /* Sačekaj da se modul učita pa otvori formu */
+    setTimeout(function () {
+      if (key === 'add-reminder' && global.reminders && global.reminders.openForm) {
+        global.reminders.openForm(null);
+      } else if (key === 'add-bill' && global.bills && global.bills.openBillForm) {
+        global.bills.openBillForm(null);
+      } else if (key === 'add-item' && global.items && global.items.openForm) {
+        global.items.openForm(null);
+      } else if (key === 'add-money' && global.money && global.money.openTransactionForm) {
+        global.money.openTransactionForm(null, 'expense');
+      }
+    }, 150);
   }
 
   /* ---------- TOAST ---------- */
@@ -470,6 +468,20 @@
     toastTimer = setTimeout(function () {
       el.classList.remove('show');
     }, 2600);
+  }
+
+  /* ---------- FUTER BRZE AKCIJE ---------- */
+
+  function bindFooterActions() {
+    document.querySelectorAll('.nav-btn.nav-action').forEach(function (btn) {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const action = btn.getAttribute('data-action');
+        handleQuickAction(action);
+      });
+    });
   }
 
   /* ---------- LOCK BUTTONS ---------- */
@@ -527,10 +539,12 @@
     renderWidgets();
     renderQuickActions();
     bindModuleLockButtons();
+    bindFooterActions();
   }
 
   function init() {
     refreshAll();
+    bindFooterActions();
 
     global.addEventListener('alatikapro:langchange', refreshAll);
 
