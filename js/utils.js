@@ -296,7 +296,6 @@
       '         value="' + escapeHtml(displayValue) + '" ',
       '         placeholder="' + placeholder + '" ',
       '         autocomplete="off" ',
-      '         maxlength="14" ',
       '         ' + required + ' ',
       '         data-smart-display />',
       '  <button type="button" class="smart-date-icon" tabindex="-1" aria-label="Kalendar">',
@@ -322,16 +321,18 @@
     if (!display) return;
 
     display.addEventListener('keydown', function (e) {
-      /* Dozvoli navigacione tastere */
-      const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End', 'Escape'];
-      if (allowed.indexOf(e.key) !== -1) return;
-      /* Dozvoli Ctrl/Cmd kombinacije (copy/paste/select all) */
-      if (e.ctrlKey || e.metaKey) return;
-      /* Dozvoli samo cifre */
-      if (!/^\d$/.test(e.key)) {
-        e.preventDefault();
-      }
-    });
+  /* Dozvoli navigacione tastere */
+  const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End', 'Escape'];
+  if (allowed.indexOf(e.key) !== -1) return;
+  /* Dozvoli Ctrl/Cmd kombinacije (copy/paste/select all) */
+  if (e.ctrlKey || e.metaKey) return;
+  /* Dozvoli cifre */
+  if (/^\d$/.test(e.key)) return;
+  /* Dozvoli / i razmak (ako korisnik želi ručno da ukuca) */
+  if (e.key === '/' || e.key === ' ') return;
+  /* Sve ostalo blokiraj */
+  e.preventDefault();
+});
 
     display.addEventListener('input', function (e) {
       const input = e.target;
