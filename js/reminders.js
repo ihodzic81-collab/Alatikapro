@@ -246,7 +246,7 @@
     toggleFabVisibility();
   }
 
-  function buildHeader() {
+    function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -276,7 +276,9 @@
       global.router.navigate('home');
     });
 
-    header.querySelector('#remHelp').addEventListener('click', showHelp);
+    header.querySelector('#remHelp').addEventListener('click', function () {
+      if (global.help) global.help.open('reminders');
+    });
 
     return header;
   }
