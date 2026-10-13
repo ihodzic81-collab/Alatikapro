@@ -2,9 +2,10 @@
    ALATIKA PRO — home.js
    Logika Početne strane:
    - Pozdrav i datum
-   - Kartice modula (sa zaključavanjem)
+   - 4 kompaktne kartice modula (u jednom redu)
+   - 4 interaktivna vidžeta: Današnje obaveze, Računi na
+     čekanju, Budžet ovog meseca, Kursna lista
    - Brze akcije
-   - Današnji pregled (prazan placeholder za sada)
    ========================================================= */
 
 (function (global) {
@@ -55,9 +56,7 @@
       iconColor: 'reminders',
       titleKey: 'nav.reminders',
       titleFallback: 'Podsetnici',
-      subKey: 'home.mod.reminders.sub',
-      subFallback: 'Obaveze i rokovi.',
-      icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>'
+      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>'
     },
     {
       key: 'bills',
@@ -65,9 +64,7 @@
       iconColor: 'bills',
       titleKey: 'nav.bills',
       titleFallback: 'Računi',
-      subKey: 'home.mod.bills.sub',
-      subFallback: 'Arhiva i plaćanja.',
-      icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>'
+      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>'
     },
     {
       key: 'items',
@@ -75,9 +72,7 @@
       iconColor: 'items',
       titleKey: 'nav.items',
       titleFallback: 'Moje stvari',
-      subKey: 'home.mod.items.sub',
-      subFallback: 'Dokumenta i fajlovi.',
-      icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
     },
     {
       key: 'money',
@@ -85,14 +80,12 @@
       iconColor: 'money',
       titleKey: 'nav.money',
       titleFallback: 'Novac',
-      subKey: 'home.mod.money.sub',
-      subFallback: 'Prihodi i rashodi.',
-      icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>'
+      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>'
     }
   ];
 
   const LOCK_SVG =
-    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
 
   function renderModuleCards() {
     const wrap = document.getElementById('homeCards');
@@ -102,7 +95,7 @@
     MODULE_DEFS.forEach(function (mod) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'module-card';
+      btn.className = 'module-card mc-compact';
       btn.setAttribute('data-module', mod.key);
 
       const locked = global.pin && global.pin.isModuleLocked(mod.key) ? true : false;
@@ -110,7 +103,6 @@
       btn.innerHTML = [
         '<span class="mc-icon ' + mod.iconColor + '" aria-hidden="true">' + mod.icon + '</span>',
         '<span class="mc-title">' + tr(mod.titleKey, mod.titleFallback) + '</span>',
-        '<span class="mc-sub">' + tr(mod.subKey, mod.subFallback) + '</span>',
         locked ? '<span class="mc-lock" aria-hidden="true">' + LOCK_SVG + '</span>' : ''
       ].join('');
 
@@ -121,8 +113,6 @@
       wrap.appendChild(btn);
     });
   }
-
-  /* ---------- OTVARANJE MODULA (sa PIN proverom) ---------- */
 
   function openModule(moduleKey) {
     const routeMap = {
@@ -150,6 +140,230 @@
       });
     } else {
       global.router.navigate(route);
+    }
+  }
+
+  /* ---------- VIDŽETI (4 komada) ---------- */
+
+  function renderWidgets() {
+    const wrap = document.getElementById('homeWidgets');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    /* 1. Današnje obaveze */
+    renderTodayWidget(wrap);
+
+    /* 2. Računi na čekanju */
+    renderPendingBillsWidget(wrap);
+
+    /* 3. Budžet ovog meseca */
+    renderBudgetWidget(wrap);
+
+    /* 4. Kursna lista */
+    renderRatesWidget(wrap);
+  }
+
+  /* --- 1. Današnje obaveze --- */
+  function renderTodayWidget(parent) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-widget hw-reminders';
+
+    let count = 0;
+    let label = tr('home.today.empty', 'Nema obaveza za danas.');
+
+    if (global.reminders && global.reminders.loadAll) {
+      /* Sinhrono ne možemo, ali koristimo keš iz state-a ako postoji */
+    }
+
+    /* Čitamo iz storage-a sinhrono preko lsGet? Ne — koristimo već učitane liste
+       iz modula. Ako nisu učitane, prikazujemo 0. */
+    const reminders = (global.reminders && global.reminders._state && global.reminders._state.items) || [];
+
+    const today = global.utils.todayISO();
+    const todayItems = reminders.filter(function (r) {
+      if (r.done) return false;
+      const eff = global.reminders.effectiveDate ? global.reminders.effectiveDate(r) : r.date;
+      return eff === today;
+    });
+
+    count = todayItems.length;
+    if (count > 0) {
+      label = count + ' ' + (count === 1 ? tr('home.widget.task', 'obaveza') : tr('home.widget.tasks', 'obaveza')) + ' ' + tr('home.widget.forToday', 'za danas');
+    }
+
+    card.innerHTML = [
+      '<span class="hw-icon hw-icon-reminders" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>',
+      '</span>',
+      '<span class="hw-body">',
+      '  <span class="hw-label">' + tr('home.widget.todayTitle', 'Današnje obaveze') + '</span>',
+      '  <span class="hw-value">' + label + '</span>',
+      '</span>',
+      '<span class="hw-arrow" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+      '</span>'
+    ].join('');
+
+    card.addEventListener('click', function () {
+      global.router.navigate('reminders');
+    });
+
+    parent.appendChild(card);
+  }
+
+  /* --- 2. Računi na čekanju --- */
+  function renderPendingBillsWidget(parent) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-widget hw-bills';
+
+    const bills = (global.bills && global.bills._state && global.bills._state.items) || [];
+    const currentMonth = (function () {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    })();
+
+    const pending = bills.filter(function (b) {
+      return !b.paid && (b.month || '') === currentMonth;
+    });
+
+    let value = tr('home.widget.noBills', 'Nema računa na čekanju.');
+    if (pending.length > 0) {
+      /* Zbir po valuti — prikaži prvi */
+      const byCur = {};
+      pending.forEach(function (b) {
+        const cur = b.currency || 'RSD';
+        byCur[cur] = (byCur[cur] || 0) + (Number(b.amount) || 0);
+      });
+      const parts = Object.keys(byCur).map(function (cur) {
+        const flag = global.currencies ? global.currencies.getFlag(cur) : '';
+        return flag + ' ' + byCur[cur].toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
+      });
+      value = pending.length + ' · ' + parts.join(' · ');
+    }
+
+    card.innerHTML = [
+      '<span class="hw-icon hw-icon-bills" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>',
+      '</span>',
+      '<span class="hw-body">',
+      '  <span class="hw-label">' + tr('home.widget.billsTitle', 'Računi na čekanju') + '</span>',
+      '  <span class="hw-value">' + value + '</span>',
+      '</span>',
+      '<span class="hw-arrow" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+      '</span>'
+    ].join('');
+
+    card.addEventListener('click', function () {
+      global.router.navigate('bills');
+    });
+
+    parent.appendChild(card);
+  }
+
+  /* --- 3. Budžet ovog meseca --- */
+  function renderBudgetWidget(parent) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-widget hw-money';
+
+    const transactions = (global.money && global.money._state && global.money._state.items) || [];
+    const budgets = (global.money && global.money._state && global.money._state.budgets) || [];
+
+    const currentMonth = (function () {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    })();
+
+    const monthExpenses = transactions.filter(function (x) {
+      return x.type === 'expense' && (x.date || '').slice(0, 7) === currentMonth;
+    });
+
+    const totalExpenses = monthExpenses.reduce(function (sum, x) {
+      return sum + (Number(x.amount) || 0);
+    }, 0);
+
+    const budget = budgets.find(function (b) { return b.month === currentMonth; });
+
+    let value = tr('home.widget.noBudget', 'Budžet nije postavljen.');
+    if (budget && budget.amount > 0) {
+      const percent = Math.min(100, Math.round((totalExpenses / budget.amount) * 100));
+      value = percent + '% · ' +
+        totalExpenses.toLocaleString('sr-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' / ' +
+        Number(budget.amount).toLocaleString('sr-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' RSD';
+    } else {
+      value = totalExpenses.toLocaleString('sr-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' RSD ' + tr('home.widget.spent', 'potrošeno');
+    }
+
+    card.innerHTML = [
+      '<span class="hw-icon hw-icon-money" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>',
+      '</span>',
+      '<span class="hw-body">',
+      '  <span class="hw-label">' + tr('home.widget.budgetTitle', 'Budžet ovog meseca') + '</span>',
+      '  <span class="hw-value">' + value + '</span>',
+      '</span>',
+      '<span class="hw-arrow" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+      '</span>'
+    ].join('');
+
+    card.addEventListener('click', function () {
+      global.router.navigate('money');
+    });
+
+    parent.appendChild(card);
+  }
+
+  /* --- 4. Kursna lista (mini) --- */
+  function renderRatesWidget(parent) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-widget hw-rates';
+
+    card.innerHTML = [
+      '<span class="hw-icon hw-icon-rates" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>',
+      '</span>',
+      '<span class="hw-body">',
+      '  <span class="hw-label">' + tr('home.rates', 'Kursna lista') + '</span>',
+      '  <span class="hw-value" id="hwRatesValue">' + tr('rates.loading', 'Učitavanje...') + '</span>',
+      '</span>',
+      '<span class="hw-arrow" aria-hidden="true">',
+      '  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+      '</span>'
+    ].join('');
+
+    card.addEventListener('click', function () {
+      global.router.navigate('money');
+    });
+
+    parent.appendChild(card);
+
+    /* Popuni vrednost iz NBS */
+    if (global.nbs) {
+      global.nbs.getRates().then(function () {
+        const valueEl = document.getElementById('hwRatesValue');
+        if (!valueEl) return;
+        const eur = global.nbs.getRate('EUR');
+        const usd = global.nbs.getRate('USD');
+        if (!eur) {
+          valueEl.textContent = tr('rates.unavailable', 'Kurs nije dostupan.');
+          return;
+        }
+        const parts = [];
+        if (eur) parts.push('EUR ' + eur.toFixed(2));
+        if (usd) parts.push('USD ' + usd.toFixed(2));
+        valueEl.textContent = parts.join(' · ') + ' RSD';
+      }).catch(function () {
+        const valueEl = document.getElementById('hwRatesValue');
+        if (valueEl) valueEl.textContent = tr('rates.unavailable', 'Kurs nije dostupan.');
+      });
+    } else {
+      const valueEl = document.getElementById('hwRatesValue');
+      if (valueEl) valueEl.textContent = tr('rates.unavailable', 'Kurs nije dostupan.');
     }
   }
 
@@ -214,30 +428,12 @@
     };
     const r = routeByAction[key];
     if (r) global.router.navigate(r);
-    showToast(tr('home.action.soon', 'Ova funkcija dolazi u narednoj sesiji.'));
   }
 
-  /* ---------- DANAŠNJI PREGLED ---------- */
+  /* ---------- DANAŠNJI PREGLED (zadržan zbog kompatibilnosti) ---------- */
 
   function renderToday() {
-    const wrap = document.getElementById('homeToday');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-
-    const empty = document.createElement('div');
-    empty.className = 'today-card';
-    empty.style.cursor = 'default';
-    empty.innerHTML = [
-      '<span class="today-icon" aria-hidden="true">',
-      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
-      '<circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path>',
-      '</svg></span>',
-      '<span class="today-text">',
-      '<span class="today-label">' + tr('home.today.empty', 'Nema obaveza za danas.') + '</span>',
-      '<span class="today-sub">' + tr('home.today.emptySub', 'Uživaj u slobodnom danu.') + '</span>',
-      '</span>'
-    ].join('');
-    wrap.appendChild(empty);
+    /* Ništa — zamenjeno vidžetima. */
   }
 
   /* ---------- TOAST ---------- */
@@ -255,7 +451,7 @@
     }, 2400);
   }
 
-  /* ---------- ZAKLJUČAVANJE (dugmad u zaglavljima modula) ---------- */
+  /* ---------- ZAKLJUČAVANJE ---------- */
 
   function bindModuleLockButtons() {
     const buttons = document.querySelectorAll('[data-module-lock]');
@@ -290,8 +486,8 @@
   function refreshAll() {
     renderGreeting();
     renderModuleCards();
+    renderWidgets();
     renderQuickActions();
-    renderToday();
     bindModuleLockButtons();
   }
 
@@ -300,20 +496,22 @@
   function init() {
     refreshAll();
 
-    /* Na promenu jezika — ponovo iscrtaj */
     global.addEventListener('alatikapro:langchange', refreshAll);
 
-    /* Na promenu PIN stanja — ponovo iscrtaj kartice */
     global.addEventListener('alatikapro:pinchange', function () {
       renderModuleCards();
     });
 
-    /* Kada se vratimo na home, osveži */
     if (global.router && global.router.onRouteChange) {
       global.router.onRouteChange(function (route) {
         if (route === 'home') refreshAll();
       });
     }
+
+    /* Kada se moduli učitaju, osveži vidžete */
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) renderWidgets();
+    });
   }
 
   global.home = {
