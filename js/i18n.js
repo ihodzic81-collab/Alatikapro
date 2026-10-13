@@ -15,6 +15,10 @@
       'app.tagline': 'Sve važno, na jednom mestu.',
 
       'nav.home': 'Početna',
+      'nav.addReminder': 'Podsetnik',
+      'nav.addBill': 'Račun',
+      'nav.addItem': 'Dokument',
+      'nav.addMoney': 'Transakcija',
       'nav.reminders': 'Podsetnici',
       'nav.bills': 'Računi',
       'nav.items': 'Moje stvari',
@@ -541,6 +545,10 @@
       'app.tagline': 'Everything important, in one place.',
 
       'nav.home': 'Home',
+      'nav.addReminder': 'Reminder',
+      'nav.addBill': 'Bill',
+      'nav.addItem': 'Document',
+      'nav.addMoney': 'Transaction',
       'nav.reminders': 'Reminders',
       'nav.bills': 'Bills',
       'nav.items': 'My Items',
