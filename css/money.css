@@ -697,3 +697,66 @@
     font-size: 1.6rem;
   }
 }
+
+/* =====================
+   FORM — responsive (telefon)
+   ===================== */
+@media (max-width: 480px) {
+  /* Iznos + valuta — jedna kolona na telefonu */
+  .amount-row {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    align-items: stretch;
+  }
+
+  .amount-row .currency-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .amount-row .form-group {
+    width: 100%;
+  }
+
+  /* Datum input — text centriran levo, ne seče kursor */
+  .smart-date input.input,
+  .smart-date input[type="text"] {
+    padding-left: 0.85rem;
+    padding-right: 2.6rem;
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-align: left;
+  }
+
+  /* Datum vidljiv uvek */
+  .smart-date input.input:not(:placeholder-shown) {
+    font-weight: 600;
+  }
+}
+
+/* Extra mali telefoni */
+@media (max-width: 360px) {
+  .amount-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .smart-date input.input,
+  .smart-date input[type="text"] {
+    font-size: 0.95rem;
+    padding-left: 0.75rem;
+    padding-right: 2.4rem;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Tablet i više — ostaje original (2 kolone) */
+@media (min-width: 481px) {
+  .amount-row {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+  .amount-row .currency-select {
+    min-width: 130px;
+  }
+}
