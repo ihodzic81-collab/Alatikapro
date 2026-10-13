@@ -6,6 +6,7 @@
    - Tab ČEKOVI: brza realizacija, prikaz iz drugih meseci
    - Pametni datumi (DD / MM / GGGG)
    - Latinica za mesece (ručno)
+   - Povezivanje sa modulom Novac (plaćen račun → rashod)
    ========================================================= */
 
 (function (global) {
@@ -35,7 +36,6 @@
     { id: 'other',       name_sr: 'Ostalo',                 name_en: 'Other' }
   ];
 
-  /* Ručni nazivi meseci — latinični, nikad ćirilica */
   const MONTHS_SR = [
     'januar', 'februar', 'mart', 'april', 'maj', 'jun',
     'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar'
@@ -59,8 +59,6 @@
     editingCheckId: null,
     editingRateId: null
   };
-
-  /* ---------- POMOĆNE ---------- */
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
@@ -97,9 +95,6 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
 
-  /**
-   * Latinica — ručni nazivi meseci (nikad ćirilica).
-   */
   function monthLabel(monthISO) {
     if (!monthISO) return '';
     const parts = monthISO.split('-');
@@ -109,7 +104,6 @@
 
     const months = lang() === 'en' ? MONTHS_EN : MONTHS_SR;
     const name = months[m];
-    /* Prvo slovo veliko */
     return name.charAt(0).toUpperCase() + name.slice(1) + ' ' + y;
   }
 
@@ -135,8 +129,6 @@
     const locale = lang() === 'en' ? 'en-GB' : 'sr-RS';
     return n.toLocaleString(locale, { maximumFractionDigits: 0 });
   }
-
-  /* ---------- STATUS RAČUNA ---------- */
 
   function getStatus(bill) {
     if (bill.paid) return 'paid';
@@ -219,8 +211,6 @@
     });
   }
 
-  /* ---------- UČITAVANJE ---------- */
-
   function loadAll() {
     return Promise.all([
       global.storage.loadAll(STORE),
@@ -240,17 +230,9 @@
     });
   }
 
-  /* ---------- FILTRIRANJE RAČUNA (sa prikazom iz drugih meseci) ---------- */
-
-  /**
-   * Vraća račune za izabrani mesec + račune iz drugih meseci koji su neplaćeni
-   * ili plaćeni ali u bliskoj budućnosti.
-   * Svaki račun dobija flag `otherMonth` ako nije iz izabranog meseca.
-   */
   function applyFilter(list) {
     let out = list.slice();
 
-    /* Filter po statusu */
     if (state.filter === 'paid') {
       out = out.filter(function (b) { return b.paid === true; });
     } else if (state.filter === 'pending') {
@@ -259,7 +241,6 @@
       out = out.filter(function (b) { return !b.paid && getStatus(b) === 'overdue'; });
     }
 
-    /* Pretraga */
     if (state.search) {
       const q = state.search.toLowerCase();
       out = out.filter(function (b) {
@@ -270,7 +251,6 @@
       });
     }
 
-    /* Oznaka da li je iz izabranog meseca */
     const selectedMonth = state.month;
     out = out.map(function (b) {
       return Object.assign({}, b, {
@@ -278,7 +258,6 @@
       });
     });
 
-    /* Sortiraj: prvo iz izabranog meseca, pa ostali */
     out.sort(function (a, b) {
       if (a.__otherMonth !== b.__otherMonth) {
         return a.__otherMonth ? 1 : -1;
@@ -288,8 +267,6 @@
 
     return out;
   }
-
-  /* ---------- SAŽETAK RAČUNA ---------- */
 
   function computeSummary(list) {
     const monthItems = state.month
@@ -322,8 +299,6 @@
       pendingByCurrency: pendingByCurrency
     };
   }
-
-  /* ---------- RATE ---------- */
 
   function getRateProgress(rate) {
     const total = Number(rate.totalInstallments) || 0;
@@ -359,8 +334,6 @@
     if (rate.active === false) return 'finished';
     return 'active';
   }
-
-  /* ---------- ČEKOVI ---------- */
 
   function getCheckStatus(check) {
     if (check.realized) return 'realized';
@@ -419,7 +392,35 @@
 
     if (!promises.length) return Promise.resolve(0);
     return Promise.all(promises).then(function () { return changed; });
-  }  /* =========================================================
+  }
+
+  /* =========================================================
+     INTEGRACIJA SA NOVCEM
+     ========================================================= */
+
+  /**
+   * Kreira ili ažurira rashod u modulu Novac na osnovu plaćenog računa.
+   * Ako je račun već imao povezanu transakciju (linkedTxId), ažurira je.
+   * Inače kreira novu.
+   */
+  function syncBillToMoney(bill) {
+    if (!global.money || !global.money.upsertExpenseFromBill) {
+      return Promise.resolve();
+    }
+    return global.money.upsertExpenseFromBill(bill);
+  }
+
+  /**
+   * Briše povezanu transakciju iz modula Novac.
+   */
+  function removeBillFromMoney(billId) {
+    if (!global.money || !global.money.removeExpenseByBillId) {
+      return Promise.resolve();
+    }
+    return global.money.removeExpenseByBillId(billId);
+  }
+
+  /* =========================================================
      RENDER — GLAVNI
      ========================================================= */
 
@@ -477,7 +478,7 @@
   }
 
   /* =========================================================
-     TAB 1 — RAČUNI (sa prikazom iz drugih meseci)
+     TAB 1 — RAČUNI
      ========================================================= */
 
   function renderBillsTab(view) {
@@ -634,7 +635,6 @@
       return;
     }
 
-    /* Prikaz izabranog meseca */
     const currentItems = filtered.filter(function (b) { return !b.__otherMonth; });
     const otherItems = filtered.filter(function (b) { return b.__otherMonth; });
 
@@ -644,7 +644,6 @@
       });
     }
 
-    /* Prikaz iz drugih meseci — pod jasnom oznakom */
     if (otherItems.length > 0) {
       const divider = document.createElement('div');
       divider.className = 'other-month-divider';
@@ -665,7 +664,6 @@
     item.type = 'button';
     item.className = 'bill-item' + (status === 'overdue' ? ' overdue' : '') + (b.paid ? ' paid' : '');
 
-    /* Oznaka drugog meseca */
     if (b.__otherMonth) {
       item.classList.add('other-month');
     }
@@ -701,7 +699,6 @@
     const meta = document.createElement('div');
     meta.className = 'bill-meta';
 
-    /* Oznaka meseca (ako je iz drugog meseca) */
     if (b.__otherMonth && b.month) {
       const monthBadge = document.createElement('span');
       monthBadge.className = 'bill-month-badge';
@@ -994,7 +991,7 @@
   }
 
   /* =========================================================
-     TAB 3 — ČEKOVI (sa brzom realizacijom i prikazom iz drugih meseci)
+     TAB 3 — ČEKOVI
      ========================================================= */
 
   function renderChecksTab(view) {
@@ -1070,14 +1067,12 @@
 
     let filtered = state.checks.slice();
 
-    /* Filter po statusu */
     if (state.checkFilter === 'pending') {
       filtered = filtered.filter(function (c) { return !c.realized; });
     } else if (state.checkFilter === 'realized') {
       filtered = filtered.filter(function (c) { return c.realized === true; });
     }
 
-    /* Grupisanje po purchaseId */
     const grouped = {};
     const standalone = [];
 
@@ -1090,7 +1085,6 @@
       }
     });
 
-    /* Grupe — prikaz sa oznakom ako je iz drugog meseca */
     const groupsArr = Object.keys(grouped).map(function (pid) {
       const checks = grouped[pid];
       checks.sort(function (a, b) {
@@ -1099,7 +1093,6 @@
       return { pid: pid, checks: checks };
     });
 
-    /* Sortiraj grupe: one sa realizacijom u tekućem mesecu prve */
     const month = state.month;
     groupsArr.sort(function (a, b) {
       const aInMonth = a.checks.some(function (c) { return (c.realizeDate || '').slice(0, 7) === month; });
@@ -1142,13 +1135,11 @@
     const monthly = Number(first.amount) || 0;
     const totalAmount = monthly * total;
 
-    /* Prvi nerealizovani ček */
     const nextPending = checks.find(function (c) { return !c.realized; });
 
     const group = document.createElement('div');
     group.className = 'purchase-group';
 
-    /* Header */
     const header = document.createElement('div');
     header.className = 'purchase-header';
     header.innerHTML = [
@@ -1177,7 +1168,6 @@
 
     group.appendChild(header);
 
-    /* Brza akcija — "Realizuj sledeći" ako ima nerealizovanih */
     if (nextPending) {
       const actions = document.createElement('div');
       actions.className = 'purchase-quick-actions';
@@ -1186,7 +1176,6 @@
       quickBtn.type = 'button';
       quickBtn.className = 'purchase-quick-btn';
 
-      /* Prikaz datuma sledećeg čeka */
       const nextDateText = nextPending.realizeDate
         ? global.utils.formatDate(nextPending.realizeDate)
         : '';
@@ -1200,7 +1189,6 @@
       quickBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         toggleCheckRealized(nextPending, function () {
-          /* Nakon realizacije — osveži */
           loadAll().then(function () {
             const v = document.getElementById('view-bills');
             if (v) refreshAll(v);
@@ -1212,7 +1200,6 @@
       group.appendChild(actions);
     }
 
-    /* Details (lista čekova unutra) */
     const details = document.createElement('div');
     details.className = 'purchase-details';
     details.style.display = 'none';
@@ -1223,7 +1210,6 @@
 
     group.appendChild(details);
 
-    /* Toggle na klik headera */
     header.style.cursor = 'pointer';
     header.addEventListener('click', function () {
       const isOpen = details.style.display !== 'none';
@@ -1366,7 +1352,9 @@
           t('checks.partialDone', 'čekova realizovano. Preostalo') + ' ' + summary.pending + '.';
       }
     }
-  }  /* =========================================================
+  }
+
+  /* =========================================================
      FORMA — RAČUN
      ========================================================= */
 
@@ -1659,6 +1647,10 @@
     }
 
     let record;
+    const wasPaid = state.editingId
+      ? (state.items.find(function (x) { return x.id === state.editingId; }) || {}).paid
+      : false;
+
     if (state.editingId) {
       const existing = state.items.find(function (x) { return x.id === state.editingId; });
       if (!existing) return;
@@ -1681,6 +1673,17 @@
     }
 
     global.storage.save(STORE, record).then(function () {
+      /* Sinhronizacija sa Novcem */
+      if (record.paid && !wasPaid) {
+        return syncBillToMoney(record);
+      } else if (!record.paid && wasPaid) {
+        return removeBillFromMoney(record.id);
+      } else if (record.paid && wasPaid) {
+        /* Ažuriraj postojeću transakciju (npr. promenjen iznos) */
+        return syncBillToMoney(record);
+      }
+      return Promise.resolve();
+    }).then(function () {
       closeForm();
       loadAll().then(function () {
         const view = document.getElementById('view-bills');
@@ -1775,6 +1778,9 @@
       if (!ok) return;
       if (b.attachmentId) deleteFile(b.attachmentId);
       global.storage.delete(STORE, b.id).then(function () {
+        /* Obriši i povezanu transakciju */
+        return removeBillFromMoney(b.id);
+      }).then(function () {
         document.body.removeChild(overlay);
         loadAll().then(function () {
           const view = document.getElementById('view-bills');
@@ -1790,6 +1796,8 @@
         b.paid = true;
         b.paidDate = global.utils.todayISO();
         global.storage.save(STORE, b).then(function () {
+          return syncBillToMoney(b);
+        }).then(function () {
           if (global.home) global.home.showToast(t('bills.paidToast', 'Račun plaćen!'));
           document.body.removeChild(overlay);
           loadAll().then(function () {
@@ -2524,6 +2532,8 @@
     DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
     getAllCategories: getAllCategories,
     addCustomCategory: addCustomCategory,
-    autoRealizeChecks: autoRealizeChecks
+    autoRealizeChecks: autoRealizeChecks,
+    syncBillToMoney: syncBillToMoney,
+    removeBillFromMoney: removeBillFromMoney
   };
 })(window);
