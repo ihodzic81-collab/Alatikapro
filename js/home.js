@@ -342,7 +342,7 @@
   }
 
   /* --- Kursna lista sa MINI KONVERTEROM --- */
-  function renderRatesWidget(parent) {
+   function renderRatesWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
 
@@ -357,7 +357,7 @@
       '<div class="hw-converter" id="hwConverter">',
       '  <input type="text" inputmode="decimal" class="hw-conv-input" id="hwConvAmount" value="100" />',
       '  <select class="hw-conv-cur" id="hwConvFrom"></select>',
-      '  <button type="button" class="hw-conv-swap" id="hwConvSwap" aria-label="' + tr('conv.swap', 'Zameni') + '">',
+      '  <button type="button" class="hw-conv-swap" id="hwConvSwap">',
       '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>',
       '  </button>',
       '  <select class="hw-conv-cur" id="hwConvTo"></select>',
@@ -371,7 +371,6 @@
 
     parent.appendChild(card);
 
-    /* Popuni valute */
     const fromSelect = card.querySelector('#hwConvFrom');
     const toSelect = card.querySelector('#hwConvTo');
     const allCurrencies = global.currencies ? global.currencies.getAll() : [];
@@ -412,7 +411,7 @@
       }
 
       const result = global.nbs.convert(amount, from, to);
-      if (result === null) {
+      if (result === null || !isFinite(result)) {
         resultValue.textContent = '—';
         rateEl.textContent = tr('conv.error', 'Kurs nije dostupan.');
         return;
@@ -424,7 +423,6 @@
         maximumFractionDigits: 2
       }) + ' ' + flag + ' ' + to;
 
-      /* Prikaz kursa */
       let rateText = '';
       if (from === 'RSD' || to === 'RSD') {
         const rate = from === 'RSD' ? global.nbs.getRate(to) : global.nbs.getRate(from);
@@ -443,9 +441,7 @@
         }
       }
       const date = global.nbs.getDate();
-      if (date) {
-        rateText += ' · ' + date;
-      }
+      if (date) rateText += ' · ' + date;
       rateEl.textContent = rateText;
     }
 
@@ -472,11 +468,11 @@
       }
     });
 
-    /* Učitaj kurseve pa izračunaj */
+    /* Odmah učitaj kurseve i pozovi konverziju */
     if (global.nbs) {
       global.nbs.getRates().then(updateConversion).catch(function () {
-        resultValue.textContent = '—';
-        rateEl.textContent = tr('rates.unavailable', 'Kurs nije dostupan.');
+        /* Ako padne API, koristi hardkodovano */
+        setTimeout(updateConversion, 500);
       });
     }
   }
