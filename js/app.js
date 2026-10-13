@@ -65,35 +65,11 @@
     global.router.init();
   }
 
-  function initHome() {
-    if (global.home && global.home.init) {
-      global.home.init();
-    }
-  }
-
-  function initReminders() {
-    if (global.reminders && global.reminders.init) {
-      global.reminders.init();
-    }
-  }
-
-  function initBills() {
-    if (global.bills && global.bills.init) {
-      global.bills.init();
-    }
-  }
-
-  function initItems() {
-    if (global.items && global.items.init) {
-      global.items.init();
-    }
-  }
-
-  function initMoney() {
-    if (global.money && global.money.init) {
-      global.money.init();
-    }
-  }
+  function initHome() { if (global.home && global.home.init) global.home.init(); }
+  function initReminders() { if (global.reminders && global.reminders.init) global.reminders.init(); }
+  function initBills() { if (global.bills && global.bills.init) global.bills.init(); }
+  function initItems() { if (global.items && global.items.init) global.items.init(); }
+  function initMoney() { if (global.money && global.money.init) global.money.init(); }
 
   function initBackButtons() {
     document.addEventListener('click', function (e) {
@@ -108,32 +84,19 @@
 
   function startChecksAutoRealize() {
     if (!global.bills || !global.bills.autoRealizeChecks) return;
-
     global.bills.autoRealizeChecks().then(function (changed) {
-      if (changed > 0 && global.bills.loadAll) {
-        global.bills.loadAll();
-      }
+      if (changed > 0 && global.bills.loadAll) global.bills.loadAll();
     });
-
     setInterval(function () {
       global.bills.autoRealizeChecks();
     }, 30 * 60 * 1000);
   }
 
-  /**
-   * Automatsko osvežavanje kursne liste (NBS):
-   * - Pri startu povlači (ili koristi keš ako je svež)
-   * - Na svakih 6h povlači ponovo
-   */
   function startRatesRefresh() {
     if (!global.nbs) return;
-
     function refresh() {
-      global.nbs.getRates().catch(function () {
-        /* Tiho — greška se vidi u widgetu */
-      });
+      global.nbs.getRates().catch(function () {});
     }
-
     refresh();
     setInterval(refresh, 6 * 60 * 60 * 1000);
   }
@@ -148,10 +111,20 @@
   function logStatus() {
     if (!global.console || !console.info) return;
     console.info(
-      '%cAlatika Pro%c v1.0.0 — kompletna aplikacija',
+      '%cAlatika Pro%c v1.0.0',
       'background:#6C5CE7;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700;',
       'color:#6C5CE7;font-weight:600;'
     );
+  }
+
+  /**
+   * Globalni listener: kada modul Novac dobije novu transakciju,
+   * osveži Početnu stranu.
+   */
+  function bindMoneyEvents() {
+    global.addEventListener('alatikapro:moneychange', function () {
+      if (global.home && global.home.refresh) global.home.refresh();
+    });
   }
 
   ready(function () {
@@ -169,6 +142,7 @@
       applyInitialState();
       startChecksAutoRealize();
       startRatesRefresh();
+      bindMoneyEvents();
       logStatus();
     } catch (err) {
       if (global.console && console.error) {
