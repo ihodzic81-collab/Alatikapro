@@ -691,4 +691,374 @@
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
     delBtn.className = 'rem-icon-btn danger';
-    delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a2 2 0 0 1
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>';
+    delBtn.addEventListener('click', function () {
+      const ok = global.confirm(t('rem.deleteConfirm', 'Obrisati ovaj podsetnik?'));
+      if (!ok) return;
+      global.storage.delete(STORE, r.id).then(function () {
+        loadAll().then(function () {
+          if (listWrap) renderList(listWrap);
+          if (global.home) global.home.refresh();
+        });
+      });
+    });
+    actions.appendChild(delBtn);
+
+    item.appendChild(actions);
+
+    return item;
+  }
+
+  /* ---------- FAB ---------- */
+
+  function buildFAB() {
+    let fab = document.getElementById('remFab');
+    if (!fab) {
+      fab = document.createElement('button');
+      fab.type = 'button';
+      fab.id = 'remFab';
+      fab.className = 'fab';
+      document.body.appendChild(fab);
+    }
+    fab.setAttribute('aria-label', t('rem.add', 'Dodaj podsetnik'));
+    fab.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>';
+    fab.onclick = function () { openForm(null); };
+  }
+
+  function toggleFabVisibility() {
+    const fab = document.getElementById('remFab');
+    if (!fab) return;
+    const route = global.router && global.router.current ? global.router.current() : 'home';
+    fab.style.display = route === 'reminders' ? '' : 'none';
+  }
+
+  /* ---------- FORMA ---------- */
+
+  let formOverlay = null;
+
+  function openForm(existing) {
+    if (formOverlay) return;
+    state.editingId = existing ? existing.id : null;
+
+    const isEdit = !!existing;
+    const item = existing ? Object.assign({}, existing) : {
+      title: '',
+      category: '',
+      date: global.utils.todayISO(),
+      time: '',
+      description: '',
+      priority: 'medium',
+      repeat: 'none',
+      notifyDaysBefore: 0,
+      isBirthday: false,
+      birthDate: '',
+      done: false,
+      billId: ''
+    };
+
+    formOverlay = document.createElement('div');
+    formOverlay.className = 'modal-overlay';
+    formOverlay.setAttribute('role', 'dialog');
+    formOverlay.setAttribute('aria-modal', 'true');
+
+    formOverlay.innerHTML = [
+      '<div class="modal-sheet">',
+      '  <h3 class="modal-title">' + (isEdit ? t('rem.edit', 'Izmeni podsetnik') : t('rem.new', 'Novi podsetnik')) + '</h3>',
+      '  <form id="remForm" novalidate>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.title', 'Naziv') + ' *</label>',
+      '      <input class="input" type="text" name="title" required value="' + global.utils.escapeHtml(item.title) + '" />',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.category', 'Kategorija') + '</label>',
+      '      <select class="select" name="category">',
+      '        <option value="">' + t('rem.field.noCategory', '— Bez kategorije —') + '</option>',
+      '      </select>',
+      '    </div>',
+      '    <div id="birthdayPanel" class="birthday-panel" style="display:none;">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.birthDate', 'Datum rođenja') + '</label>',
+      global.utils.dateInputHTML('birthDate', item.birthDate || '', {}),
+      '        <p class="form-hint">' + t('rem.field.birthDateHint', 'Unesi datum rođenja da bi se godine računale automatski.') + '</p>',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-row" id="dateRow">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.date', 'Datum') + ' *</label>',
+      global.utils.dateInputHTML('date', item.date || '', { required: true }),
+      '      </div>',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.time', 'Vreme') + '</label>',
+      '        <input class="input" type="time" name="time" value="' + global.utils.escapeHtml(item.time || '') + '" />',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-group" id="billLinkGroup" style="display:none;">',
+      '      <label class="label">' + t('rem.field.billLink', 'Poveži sa računom') + '</label>',
+      '      <select class="select" name="billId"><option value="">' + t('rem.field.noBillLink', '— Bez veze —') + '</option></select>',
+      '      <p class="form-hint">' + t('rem.field.billLinkHint', 'Kada označiš podsetnik kao završen, trošak se automatski evidentira u modulu Novac.') + '</p>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.notifyDaysBefore', 'Podseti me ranije') + '</label>',
+      '      <select class="select" name="notifyDaysBefore">',
+      '        <option value="0">' + t('rem.notify.0', 'Na dan') + '</option>',
+      '        <option value="1">' + t('rem.notify.1', '1 dan ranije') + '</option>',
+      '        <option value="2">' + t('rem.notify.2', '2 dana ranije') + '</option>',
+      '        <option value="3">' + t('rem.notify.3', '3 dana ranije') + '</option>',
+      '        <option value="5">' + t('rem.notify.5', '5 dana ranije') + '</option>',
+      '        <option value="7">' + t('rem.notify.7', '7 dana ranije') + '</option>',
+      '        <option value="14">' + t('rem.notify.14', '14 dana ranije') + '</option>',
+      '        <option value="30">' + t('rem.notify.30', '30 dana ranije') + '</option>',
+      '      </select>',
+      '    </div>',
+      '    <div class="form-row">',
+      '      <div class="form-group">',
+      '        <label class="label">' + t('rem.field.priority', 'Prioritet') + '</label>',
+      '        <select class="select" name="priority">',
+      '          <option value="low">' + t('rem.priority.low', 'Nizak') + '</option>',
+      '          <option value="medium">' + t('rem.priority.medium', 'Srednji') + '</option>',
+      '          <option value="high">' + t('rem.priority.high', 'Visok') + '</option>',
+      '        </select>',
+      '      </div>',
+      '      <div class="form-group" id="repeatGroup">',
+      '        <label class="label">' + t('rem.field.repeat', 'Ponavljanje') + '</label>',
+      '        <select class="select" name="repeat">',
+      '          <option value="none">' + t('rem.repeat.none', 'Ne ponavlja se') + '</option>',
+      '          <option value="daily">' + t('rem.repeat.daily', 'Dnevno') + '</option>',
+      '          <option value="weekly">' + t('rem.repeat.weekly', 'Nedeljno') + '</option>',
+      '          <option value="monthly">' + t('rem.repeat.monthly', 'Mesečno') + '</option>',
+      '          <option value="yearly">' + t('rem.repeat.yearly', 'Godišnje') + '</option>',
+      '        </select>',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-group">',
+      '      <label class="label">' + t('rem.field.description', 'Opis') + '</label>',
+      '      <textarea class="textarea" name="description">' + global.utils.escapeHtml(item.description || '') + '</textarea>',
+      '    </div>',
+      '    <div class="form-error" id="remFormError"></div>',
+      '    <div class="modal-actions">',
+      '      <button type="button" class="btn btn-secondary" id="remCancel">' + t('common.cancel', 'Otkaži') + '</button>',
+      '      <button type="submit" class="btn btn-primary">' + t('common.save', 'Sačuvaj') + '</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(formOverlay);
+    global.utils.bindDateInputs(formOverlay);
+
+    /* Popuni kategorije */
+    const catSelect = formOverlay.querySelector('select[name="category"]');
+    const allCats = getAllCategories();
+    allCats.forEach(function (c) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = lang() === 'en' ? (c.name_en || c.name_sr) : (c.name_sr || c.name_en);
+      if (item.category === c.id) opt.selected = true;
+      catSelect.appendChild(opt);
+    });
+
+    formOverlay.querySelector('select[name="priority"]').value = item.priority || 'medium';
+    formOverlay.querySelector('select[name="notifyDaysBefore"]').value = String(item.notifyDaysBefore || 0);
+    formOverlay.querySelector('select[name="repeat"]').value = item.repeat || 'none';
+
+    const birthdayPanel = formOverlay.querySelector('#birthdayPanel');
+    const dateRow = formOverlay.querySelector('#dateRow');
+    const billLinkGroup = formOverlay.querySelector('#billLinkGroup');
+    const repeatGroup = formOverlay.querySelector('#repeatGroup');
+    const repeatSelect = formOverlay.querySelector('select[name="repeat"]');
+    const billSelect = formOverlay.querySelector('select[name="billId"]');
+
+    /* Popuni račune */
+    function refreshBillOptions() {
+      if (!global.bills || !global.bills.loadAll) return;
+      global.bills.loadAll().then(function () {
+        const bills = (global.bills._state && global.bills._state.items) || [];
+        billSelect.innerHTML = '<option value="">' + t('rem.field.noBillLink', '— Bez veze —') + '</option>';
+        bills.forEach(function (b) {
+          const opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = (b.name || b.vendor || 'Račun') + ' — ' + (b.amount || 0) + ' ' + (b.currency || 'RSD');
+          if (item.billId === b.id) opt.selected = true;
+          billSelect.appendChild(opt);
+        });
+      });
+    }
+
+    /* Logika za rođendan — bez duplog pitanja */
+    function refreshBirthdayUI() {
+      const isFamily = catSelect.value === BIRTHDAY_CATEGORY;
+
+      if (isFamily) {
+        /* Odmah prikaži panel za datum rođenja */
+        item.isBirthday = true;
+        birthdayPanel.style.display = 'block';
+        repeatSelect.value = 'yearly';
+        repeatSelect.disabled = true;
+        /* Sakrij datum polje jer se računa automatski */
+        dateRow.style.display = 'none';
+      } else {
+        item.isBirthday = false;
+        birthdayPanel.style.display = 'none';
+        repeatSelect.disabled = false;
+        if (repeatSelect.value === 'yearly') repeatSelect.value = 'none';
+        dateRow.style.display = '';
+      }
+
+      /* Ako je kategorija "Računi i plaćanja", prikaži opciju za povezivanje */
+      if (catSelect.value === 'bills') {
+        billLinkGroup.style.display = 'block';
+        refreshBillOptions();
+      } else {
+        billLinkGroup.style.display = 'none';
+      }
+    }
+
+    catSelect.addEventListener('change', refreshBirthdayUI);
+    refreshBirthdayUI();
+
+    /* Kada se promeni datum rođenja, automatski postavi datum */
+    const birthInput = formOverlay.querySelector('input[name="birthDate"]');
+    if (birthInput) {
+      birthInput.addEventListener('change', function () {
+        const bInfo = parseBirthDate(birthInput.value);
+        if (bInfo) {
+          const next = nextBirthdayISO(bInfo);
+          if (next) {
+            global.utils.setDateValue(formOverlay, 'date', next);
+          }
+        }
+      });
+    }
+
+    formOverlay.querySelector('#remCancel').addEventListener('click', closeForm);
+    formOverlay.addEventListener('click', function (e) {
+      if (e.target === formOverlay) closeForm();
+    });
+
+    formOverlay.querySelector('#remForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      submitForm(formOverlay, item);
+    });
+
+    requestAnimationFrame(function () {
+      formOverlay.classList.add('show');
+    });
+  }
+
+  function closeForm() {
+    if (!formOverlay) return;
+    formOverlay.classList.remove('show');
+    setTimeout(function () {
+      if (formOverlay && formOverlay.parentNode) formOverlay.parentNode.removeChild(formOverlay);
+      formOverlay = null;
+    }, 200);
+  }
+
+  function submitForm(overlay, baseItem) {
+    const form = overlay.querySelector('#remForm');
+    const errEl = overlay.querySelector('#remFormError');
+    errEl.textContent = '';
+
+    const isBday = baseItem.isBirthday === true;
+    const billId = form.billId ? form.billId.value : '';
+
+    const data = {
+      title: form.title.value.trim(),
+      category: form.category.value,
+      date: form.date.value,
+      time: form.time.value,
+      priority: form.priority.value,
+      repeat: isBday ? 'yearly' : form.repeat.value,
+      notifyDaysBefore: Number(form.notifyDaysBefore.value) || 0,
+      description: form.description.value.trim(),
+      isBirthday: isBday,
+      birthDate: isBday ? (form.birthDate.value || '') : '',
+      billId: billId
+    };
+
+    if (!data.title) {
+      errEl.textContent = t('rem.err.title', 'Naziv je obavezan.');
+      return;
+    }
+
+    if (isBday && !data.birthDate) {
+      errEl.textContent = t('rem.err.birthDate', 'Datum rođenja je obavezan za rođendan.');
+      return;
+    }
+
+    if (isBday && data.birthDate) {
+      const bInfo = parseBirthDate(data.birthDate);
+      const next = nextBirthdayISO(bInfo);
+      if (next) data.date = next;
+    }
+
+    if (!data.date) {
+      errEl.textContent = t('rem.err.date', 'Datum je obavezan.');
+      return;
+    }
+
+    let record;
+    if (state.editingId) {
+      const existing = state.items.find(function (x) { return x.id === state.editingId; });
+      if (!existing) return;
+      record = Object.assign({}, existing, data);
+    } else {
+      record = Object.assign({
+        id: global.utils.uid('rem'),
+        done: false,
+        createdAt: new Date().toISOString()
+      }, data);
+    }
+
+    global.storage.save(STORE, record).then(function () {
+      closeForm();
+      loadAll().then(function () {
+        const view = document.getElementById('view-reminders');
+        if (view) {
+          const listWrap = view.querySelector('.rem-list');
+          if (listWrap) renderList(listWrap);
+        }
+        if (global.home) global.home.refresh();
+      });
+    }).catch(function (err) {
+      errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
+    });
+  }
+
+  /* ---------- INIT ---------- */
+
+  function init() {
+    loadAll().then(function () {
+      const view = document.getElementById('view-reminders');
+      if (view) renderInto(view);
+    });
+
+    global.addEventListener('alatikapro:langchange', function () {
+      const view = document.getElementById('view-reminders');
+      if (view) renderInto(view);
+    });
+
+    if (global.router && global.router.onRouteChange) {
+      global.router.onRouteChange(function (route) {
+        toggleFabVisibility();
+        if (route === 'reminders') {
+          const view = document.getElementById('view-reminders');
+          if (view) renderInto(view);
+        }
+      });
+    }
+  }
+
+  global.reminders = {
+    init: init,
+    loadAll: loadAll,
+    _state: state,
+    DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
+    getAllCategories: getAllCategories,
+    addCustomCategory: addCustomCategory,
+    effectiveDate: effectiveDate,
+    isBirthday: isBirthday,
+    parseBirthDate: parseBirthDate,
+    currentAge: currentAge
+  };
+})(window);
