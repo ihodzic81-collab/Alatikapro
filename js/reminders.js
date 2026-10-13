@@ -1,14 +1,9 @@
 /* =========================================================
    ALATIKA PRO — reminders.js
-   Modul Podsetnici:
-   - Lista, filteri, pretraga
-   - Dodavanje / izmena / brisanje / završavanje
-   - Kategorije (10 početnih + custom)
-   - Prioritet, ponavljanje, opis, vreme
-   - "Podseti me ranije"
-   - Rođendani: automatsko računanje godina (bez duplog pitanja)
-   - Povezivanje sa modulom Novac (plaćen podsetnik → rashod)
-   - Pulsirajuća tačka za hitne
+   Modul Podsetnici — pametna aplikacija.
+   - Popravljen "null dana" bag
+   - Vraćene informacije o godinama za rođendane
+   - Povezivanje sa Novcem
    ========================================================= */
 
 (function (global) {
@@ -38,8 +33,6 @@
     search: '',
     editingId: null
   };
-
-  /* ---------- POMOĆNE ---------- */
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
@@ -77,13 +70,9 @@
     if (!str) return null;
     const s = String(str).trim();
     let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m) {
-      return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
-    }
+    if (m) return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
     m = s.match(/^--(\d{2})-(\d{2})$/);
-    if (m) {
-      return { year: null, month: Number(m[1]), day: Number(m[2]) };
-    }
+    if (m) return { year: null, month: Number(m[1]), day: Number(m[2]) };
     return null;
   }
 
@@ -142,15 +131,9 @@
 
   /* ---------- POVEZIVANJE SA NOVCEM ---------- */
 
-  /**
-   * Proverava da li je podsetnik povezan sa računom (preko billId).
-   * Ako jeste, i ako je označen kao plaćen, evidentira trošak u Novac.
-   */
   function handleBillPayment(rem) {
     if (!rem.billId) return Promise.resolve();
     if (!global.money || !global.money.upsertExpenseFromBill) return Promise.resolve();
-
-    /* Pronađi račun u modulu Računi */
     if (!global.bills || !global.bills.loadAll) return Promise.resolve();
 
     return global.bills.loadAll().then(function () {
@@ -158,25 +141,21 @@
       const bill = bills.find(function (b) { return b.id === rem.billId; });
       if (!bill) return;
 
-      /* Označi račun kao plaćen */
       bill.paid = true;
       bill.paidDate = global.utils.todayISO();
 
       return global.storage.save('bills', bill).then(function () {
-        /* Sinhronizuj sa Novcem */
         return global.money.upsertExpenseFromBill(bill);
       }).then(function () {
-        /* Prikaži toast */
         if (global.home && global.home.showToast) {
           global.home.showToast(t('rem.billPaidToast', '✓ Trošak evidentiran u Novac'));
         }
-        /* Osveži modul Novac */
-        if (global.money && global.money.refresh) global.money.refresh();
+        global.dispatchEvent(new CustomEvent('alatikapro:datachange'));
       });
     });
   }
 
-  /* ---------- UČITAVANJE ---------- */
+  /* ---------- LOAD ---------- */
 
   function loadAll() {
     return global.storage.loadAll(STORE).then(function (list) {
@@ -187,7 +166,7 @@
     });
   }
 
-  /* ---------- FILTRIRANJE I GRUPISANJE ---------- */
+  /* ---------- FILTER ---------- */
 
   function applyFilter(list) {
     const today = global.utils.todayISO();
@@ -210,7 +189,6 @@
         return (r.title || '').toLowerCase().indexOf(q) !== -1 ||
                (r.description || '').toLowerCase().indexOf(q) !== -1 ||
                (r.date || '').indexOf(q) !== -1 ||
-               (r.time || '').indexOf(q) !== -1 ||
                (r.birthDate || '').indexOf(q) !== -1 ||
                categoryName(r.category).toLowerCase().indexOf(q) !== -1;
       });
@@ -225,12 +203,7 @@
     const in7 = global.utils.addDays(today, 7);
 
     const groups = {
-      overdue: [],
-      today: [],
-      tomorrow: [],
-      next7: [],
-      later: [],
-      done: []
+      overdue: [], today: [], tomorrow: [], next7: [], later: [], done: []
     };
 
     list.forEach(function (r) {
@@ -254,24 +227,17 @@
 
   function renderInto(view) {
     let header = view.querySelector('.module-header');
-    let filters = view.querySelector('.rem-filters');
-    let searchWrap = view.querySelector('.rem-search');
-    let listWrap = view.querySelector('.rem-list');
-
     if (!header) {
       view.innerHTML = '';
       header = buildHeader();
       view.appendChild(header);
     }
 
-    /* Očisti sve posle headera */
-    while (header.nextSibling) {
-      view.removeChild(header.nextSibling);
-    }
+    while (header.nextSibling) view.removeChild(header.nextSibling);
 
     buildFilters(view);
     buildSearch(view);
-    listWrap = document.createElement('div');
+    const listWrap = document.createElement('div');
     listWrap.className = 'rem-list';
     view.appendChild(listWrap);
     renderList(listWrap);
@@ -306,15 +272,11 @@
       '</div>'
     ].join('');
 
-    const backBtn = header.querySelector('#remBack');
-    backBtn.addEventListener('click', function () {
+    header.querySelector('#remBack').addEventListener('click', function () {
       global.router.navigate('home');
     });
 
-    const helpBtn = header.querySelector('#remHelp');
-    helpBtn.addEventListener('click', function () {
-      showHelp();
-    });
+    header.querySelector('#remHelp').addEventListener('click', showHelp);
 
     return header;
   }
@@ -327,7 +289,7 @@
       '  <h3 class="modal-title">' + t('rem.help.title', 'Kako rade Podsetnici?') + '</h3>',
       '  <div class="help-content">',
       '    <p>' + t('rem.help.p1', 'Podsetnici služe da ne zaboraviš važne obaveze — račune, rođendane, preglede, registracije.') + '</p>',
-      '    <p>' + t('rem.help.p2', 'Ako je podsetnik povezan sa računom (preko kategorije "Računi i plaćanja"), kada ga označiš kao završenog, trošak se automatski evidentira u modulu Novac.') + '</p>',
+      '    <p>' + t('rem.help.p2', 'Ako je podsetnik povezan sa računom, kada ga označiš kao završenog, trošak se automatski evidentira u modulu Novac.') + '</p>',
       '    <p>' + t('rem.help.p3', 'Za rođendane izaberi kategoriju "Porodica i rođendani" — aplikacija automatski računa godine i ponavlja svake godine.') + '</p>',
       '  </div>',
       '  <div class="modal-actions">',
@@ -349,13 +311,13 @@
   function buildFilters(view) {
     const filters = document.createElement('div');
     filters.className = 'rem-filters';
-    const filterDefs = [
+    const defs = [
       { id: 'all',     label: t('rem.filter.all', 'Svi') },
       { id: 'active',  label: t('rem.filter.active', 'Aktivni') },
       { id: 'done',    label: t('rem.filter.done', 'Završeni') },
       { id: 'overdue', label: t('rem.filter.overdue', 'Istekli') }
     ];
-    filterDefs.forEach(function (f) {
+    defs.forEach(function (f) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'rem-filter' + (state.filter === f.id ? ' active' : '');
@@ -383,12 +345,11 @@
     view.appendChild(search);
 
     const inp = search.querySelector('#remSearchInput');
-    const debounced = global.utils.debounce(function () {
+    inp.addEventListener('input', global.utils.debounce(function () {
       state.search = inp.value.trim();
       const listWrap = view.querySelector('.rem-list');
       if (listWrap) renderList(listWrap);
-    }, 180);
-    inp.addEventListener('input', debounced);
+    }, 180));
   }
 
   const CAKE_SVG = [
@@ -398,10 +359,6 @@
     '  <path d="M3 18h18"></path>',
     '  <path d="M12 12v-3"></path>',
     '  <path d="M12 6.5c0-1 1-1.5 1-2.5s-1-1.5-1-2.5c0 1-1 1.5-1 2.5s1 1.5 1 2.5z" fill="currentColor" stroke="none"></path>',
-    '  <path d="M8 12v-2"></path>',
-    '  <path d="M8 7.5c0-.7.7-1 .7-1.7 0 .7.7 1 .7 1.7a.7.7 0 0 1-1.4 0z" fill="currentColor" stroke="none"></path>',
-    '  <path d="M16 12v-2"></path>',
-    '  <path d="M16 7.5c0-.7.7-1 .7-1.7 0 .7.7 1 .7 1.7a.7.7 0 0 1-1.4 0z" fill="currentColor" stroke="none"></path>',
     '</svg>'
   ].join('');
 
@@ -453,6 +410,10 @@
     }
   }
 
+  /**
+   * PAMETNI KOMENTAR — za rođendane.
+   * Vraća HTML sa informacijama o godinama.
+   */
   function buildBirthdayInfoHTML(r) {
     const bInfo = parseBirthDate(r.birthDate);
     if (!bInfo) return '';
@@ -464,13 +425,17 @@
 
     const parts = [];
 
+    /* Godine koje trenutno ima */
     if (ageNow !== null) {
       parts.push('<span class="age-now">' +
         t('rem.birthday.ageNow', 'Trenutno {age} god.').replace('{age}', String(ageNow)) +
         '</span>');
+    } else {
+      parts.push('<span class="age-now">' + t('rem.birthday.ageUnknown', 'Datum rođenja bez godine') + '</span>');
     }
 
-    if (ageNext !== null && days !== null) {
+    /* Koliko puni i za koliko dana */
+    if (ageNext !== null && days !== null && days >= 0) {
       if (days === 0) {
         parts.push('<span class="turns-today">' +
           t('rem.birthday.turnsToday', '🎉 Danas puni {age} godina!').replace('{age}', String(ageNext)) +
@@ -479,7 +444,7 @@
         parts.push('<span class="turns-in">' +
           t('rem.birthday.turnsTomorrow', 'Sutra puni {age} godina').replace('{age}', String(ageNext)) +
           '</span>');
-      } else if (days > 0 && days <= 90) {
+      } else if (days > 1 && days <= 90) {
         parts.push('<span class="turns-in">' +
           t('rem.birthday.turnsIn', 'Puni {age} za {days} dana')
             .replace('{age}', String(ageNext))
@@ -492,13 +457,11 @@
             .replace('{date}', global.utils.formatDate(eff, lang())) +
           '</span>');
       }
-    } else if (!bInfo.year) {
-      parts.push('<span class="age-now">' + t('rem.birthday.ageUnknown', 'Datum rođenja bez godine') + '</span>');
     }
 
     if (!parts.length) return '';
 
-    return '<div class="rem-birthday-info">' + parts.join('<span class="sep">·</span>') + '</div>';
+    return '<div class="rem-birthday-info">' + parts.join('<span class="sep"> · </span>') + '</div>';
   }
 
   function isUrgent(r) {
@@ -507,8 +470,8 @@
     if (!eff) return false;
     const days = global.utils.daysFromToday(eff);
     if (days === null) return false;
-    if (days < 0) return true;   /* istekao */
-    if (days <= 2) return true;  /* danas/sutra/prekosutra */
+    if (days < 0) return true;
+    if (days <= 2) return true;
     return false;
   }
 
@@ -521,13 +484,8 @@
     const item = document.createElement('div');
     item.className = 'rem-item' + (r.done ? ' done' : '') + (birthday ? ' is-birthday' : '');
 
-    if (birthday && eff === today && !r.done) {
-      item.classList.add('birthday-today');
-    }
-
-    if (urgent) {
-      item.classList.add('urgent');
-    }
+    if (birthday && eff === today && !r.done) item.classList.add('birthday-today');
+    if (urgent) item.classList.add('urgent');
 
     if (birthday) {
       const cake = document.createElement('span');
@@ -544,14 +502,12 @@
         r.doneAt = r.done ? new Date().toISOString() : null;
 
         global.storage.save(STORE, r).then(function () {
-          /* Ako je podsetnik povezan sa računom i označen kao plaćen — sinhronizuj */
-          if (r.done && r.billId) {
-            return handleBillPayment(r);
-          }
+          if (r.done && r.billId) return handleBillPayment(r);
           return Promise.resolve();
         }).then(function () {
           if (listWrap) renderList(listWrap);
           if (global.home) global.home.refresh();
+          global.dispatchEvent(new CustomEvent('alatikapro:datachange'));
         });
       });
       item.appendChild(check);
@@ -592,26 +548,35 @@
 
     body.appendChild(title);
 
+    /* PAMETNA INFO za rođendane */
     if (birthday) {
       const infoHTML = buildBirthdayInfoHTML(r);
       if (infoHTML) {
         const wrapper = document.createElement('div');
         wrapper.innerHTML = infoHTML;
-        const infoEl = wrapper.firstChild;
-        body.appendChild(infoEl);
+        body.appendChild(wrapper.firstChild);
       }
+    }
+
+    /* PAMETNA INFO — opšta */
+    const smartHint = buildSmartHint(r);
+    if (smartHint) {
+      const hintEl = document.createElement('div');
+      hintEl.className = 'rem-smart-hint';
+      hintEl.innerHTML = smartHint;
+      body.appendChild(hintEl);
     }
 
     const meta = document.createElement('div');
     meta.className = 'rem-meta';
 
-    if (eff) {
+    if (eff && !birthday) {
       const days = global.utils.daysFromToday(eff);
       let cls = 'rem-meta-item';
       let label = global.utils.formatDate(eff, lang());
-      if (r.time && !birthday) label += ' • ' + r.time;
+      if (r.time) label += ' • ' + r.time;
 
-      if (!r.done) {
+      if (!r.done && days !== null) {
         if (days < 0) { cls += ' overdue'; label += ' • ' + t('rem.overdue', 'isteklo'); }
         else if (days === 0) { cls += ' soon'; label += ' • ' + t('rem.today', 'danas'); }
         else if (days === 1) { label += ' • ' + t('rem.tomorrow', 'sutra'); }
@@ -645,8 +610,7 @@
     if (notify > 0 && !birthday) {
       const chip = document.createElement('span');
       chip.className = 'rem-notify-chip';
-      chip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ' +
-        t('rem.notify.' + notify, notify + ' dana ranije');
+      chip.innerHTML = '🔔 ' + t('rem.notify.' + notify, notify + ' dana ranije');
       meta.appendChild(chip);
     }
 
@@ -658,23 +622,11 @@
     }
 
     body.appendChild(meta);
-
-    if (r.description) {
-      const desc = document.createElement('div');
-      desc.className = 'rem-meta';
-      desc.style.marginTop = '0.35rem';
-      desc.style.color = 'var(--color-text-subtle)';
-      desc.textContent = global.utils.truncate(r.description, 120);
-      body.appendChild(desc);
-    }
-
     item.appendChild(body);
 
-    /* Pulsirajuća tačka za hitne */
     if (urgent) {
       const pulse = document.createElement('span');
       pulse.className = 'rem-pulse';
-      pulse.setAttribute('aria-label', t('rem.urgent', 'Hitno'));
       item.appendChild(pulse);
     }
 
@@ -709,7 +661,38 @@
     return item;
   }
 
-  /* ---------- FAB ---------- */
+  /**
+   * PAMETNI KOMENTAR — aplikacija "komentariše" ono što vidi.
+   */
+  function buildSmartHint(r) {
+    if (r.done) return '';
+    if (isBirthday(r)) return '';
+
+    const eff = effectiveDate(r);
+    if (!eff) return '';
+
+    const days = global.utils.daysFromToday(eff);
+    if (days === null) return '';
+
+    /* Hitno */
+    if (days < 0) {
+      return '<span class="hint-urgent">⚠️ ' + t('rem.hint.overdue', 'Ovo je isteklo pre') + ' ' + Math.abs(days) + ' ' + t('rem.days', 'dana') + '.</span>';
+    }
+    if (days === 0) {
+      return '<span class="hint-urgent">⚡ ' + t('rem.hint.today', 'Ovo je za danas!') + '</span>';
+    }
+    if (days === 1) {
+      return '<span class="hint-warn">⏰ ' + t('rem.hint.tomorrow', 'Sutra je rok.') + '</span>';
+    }
+    if (days <= 3) {
+      return '<span class="hint-warn">📅 ' + t('rem.hint.soon', 'Za') + ' ' + days + ' ' + t('rem.days', 'dana') + '.</span>';
+    }
+    if (days <= 7) {
+      return '<span class="hint-info">📌 ' + t('rem.hint.thisWeek', 'Ove nedelje.') + '</span>';
+    }
+
+    return '';
+  }
 
   function buildFAB() {
     let fab = document.getElementById('remFab');
@@ -742,18 +725,9 @@
 
     const isEdit = !!existing;
     const item = existing ? Object.assign({}, existing) : {
-      title: '',
-      category: '',
-      date: global.utils.todayISO(),
-      time: '',
-      description: '',
-      priority: 'medium',
-      repeat: 'none',
-      notifyDaysBefore: 0,
-      isBirthday: false,
-      birthDate: '',
-      done: false,
-      billId: ''
+      title: '', category: '', date: global.utils.todayISO(), time: '',
+      description: '', priority: 'medium', repeat: 'none',
+      notifyDaysBefore: 0, isBirthday: false, birthDate: '', done: false, billId: ''
     };
 
     formOverlay = document.createElement('div');
@@ -806,8 +780,6 @@
       '        <option value="3">' + t('rem.notify.3', '3 dana ranije') + '</option>',
       '        <option value="5">' + t('rem.notify.5', '5 dana ranije') + '</option>',
       '        <option value="7">' + t('rem.notify.7', '7 dana ranije') + '</option>',
-      '        <option value="14">' + t('rem.notify.14', '14 dana ranije') + '</option>',
-      '        <option value="30">' + t('rem.notify.30', '30 dana ranije') + '</option>',
       '      </select>',
       '    </div>',
       '    <div class="form-row">',
@@ -846,10 +818,8 @@
     document.body.appendChild(formOverlay);
     global.utils.bindDateInputs(formOverlay);
 
-    /* Popuni kategorije */
     const catSelect = formOverlay.querySelector('select[name="category"]');
-    const allCats = getAllCategories();
-    allCats.forEach(function (c) {
+    getAllCategories().forEach(function (c) {
       const opt = document.createElement('option');
       opt.value = c.id;
       opt.textContent = lang() === 'en' ? (c.name_en || c.name_sr) : (c.name_sr || c.name_en);
@@ -864,11 +834,9 @@
     const birthdayPanel = formOverlay.querySelector('#birthdayPanel');
     const dateRow = formOverlay.querySelector('#dateRow');
     const billLinkGroup = formOverlay.querySelector('#billLinkGroup');
-    const repeatGroup = formOverlay.querySelector('#repeatGroup');
     const repeatSelect = formOverlay.querySelector('select[name="repeat"]');
     const billSelect = formOverlay.querySelector('select[name="billId"]');
 
-    /* Popuni račune */
     function refreshBillOptions() {
       if (!global.bills || !global.bills.loadAll) return;
       global.bills.loadAll().then(function () {
@@ -884,17 +852,14 @@
       });
     }
 
-    /* Logika za rođendan — bez duplog pitanja */
     function refreshBirthdayUI() {
       const isFamily = catSelect.value === BIRTHDAY_CATEGORY;
 
       if (isFamily) {
-        /* Odmah prikaži panel za datum rođenja */
         item.isBirthday = true;
         birthdayPanel.style.display = 'block';
         repeatSelect.value = 'yearly';
         repeatSelect.disabled = true;
-        /* Sakrij datum polje jer se računa automatski */
         dateRow.style.display = 'none';
       } else {
         item.isBirthday = false;
@@ -904,7 +869,6 @@
         dateRow.style.display = '';
       }
 
-      /* Ako je kategorija "Računi i plaćanja", prikaži opciju za povezivanje */
       if (catSelect.value === 'bills') {
         billLinkGroup.style.display = 'block';
         refreshBillOptions();
@@ -916,16 +880,13 @@
     catSelect.addEventListener('change', refreshBirthdayUI);
     refreshBirthdayUI();
 
-    /* Kada se promeni datum rođenja, automatski postavi datum */
     const birthInput = formOverlay.querySelector('input[name="birthDate"]');
     if (birthInput) {
       birthInput.addEventListener('change', function () {
         const bInfo = parseBirthDate(birthInput.value);
         if (bInfo) {
           const next = nextBirthdayISO(bInfo);
-          if (next) {
-            global.utils.setDateValue(formOverlay, 'date', next);
-          }
+          if (next) global.utils.setDateValue(formOverlay, 'date', next);
         }
       });
     }
@@ -940,9 +901,7 @@
       submitForm(formOverlay, item);
     });
 
-    requestAnimationFrame(function () {
-      formOverlay.classList.add('show');
-    });
+    requestAnimationFrame(function () { formOverlay.classList.add('show'); });
   }
 
   function closeForm() {
@@ -1024,8 +983,6 @@
       errEl.textContent = (err && err.message) ? err.message : t('common.error', 'Greška.');
     });
   }
-
-  /* ---------- INIT ---------- */
 
   function init() {
     loadAll().then(function () {
