@@ -1,6 +1,6 @@
 /* =========================================================
    ALATIKA PRO — reminders.css
-   Stilovi za modul Podsetnici.
+   Stilovi za modul Podsetnici + mini kalendar + pulsiranje.
    ========================================================= */
 
 .rem-filters {
@@ -12,10 +12,7 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-
-.rem-filters::-webkit-scrollbar {
-  display: none;
-}
+.rem-filters::-webkit-scrollbar { display: none; }
 
 .rem-filter {
   flex: 0 0 auto;
@@ -29,7 +26,6 @@
   white-space: nowrap;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-
 .rem-filter.active {
   background-color: var(--color-brand);
   color: #ffffff;
@@ -40,7 +36,6 @@
   position: relative;
   margin-bottom: 0.75rem;
 }
-
 .rem-search input {
   width: 100%;
   padding: 0.7rem 1rem 0.7rem 2.4rem;
@@ -52,12 +47,10 @@
   outline: none;
   min-height: 44px;
 }
-
 .rem-search input:focus {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px var(--color-brand-ring);
 }
-
 .rem-search .search-icon {
   position: absolute;
   left: 0.85rem;
@@ -67,13 +60,7 @@
   pointer-events: none;
 }
 
-.rem-list {
-}
-
-.rem-group {
-  margin-bottom: 1.25rem;
-}
-
+.rem-group { margin-bottom: 1.25rem; }
 .rem-group-title {
   display: flex;
   align-items: center;
@@ -85,7 +72,6 @@
   letter-spacing: 0.04em;
   padding: 0 0.25rem 0.5rem;
 }
-
 .rem-group-count {
   font-size: 0.75rem;
   color: var(--color-text-subtle);
@@ -105,18 +91,32 @@
   box-shadow: var(--shadow-sm);
   margin-bottom: 0.5rem;
   transition: transform 0.08s ease, opacity 0.15s ease;
+  position: relative;
+}
+.rem-item.done { opacity: 0.55; }
+.rem-item.done .rem-title { text-decoration: line-through; }
+.rem-item.is-birthday { border-left: 3px solid #EC4899; }
+.rem-item.urgent {
+  border-left: 3px solid var(--color-danger);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.04), transparent);
 }
 
-.rem-item.done {
-  opacity: 0.55;
+/* Pulsirajuća tačka */
+.rem-pulse {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-danger);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: remPulse 1.6s infinite;
 }
-
-.rem-item.done .rem-title {
-  text-decoration: line-through;
-}
-
-.rem-item.is-birthday {
-  border-left: 3px solid #EC4899;
+@keyframes remPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); transform: scale(1); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); transform: scale(1.15); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
 }
 
 .rem-check {
@@ -133,11 +133,7 @@
   margin-top: 2px;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-
-.rem-check:hover {
-  border-color: var(--color-brand);
-}
-
+.rem-check:hover { border-color: var(--color-brand); }
 .rem-item.done .rem-check {
   background-color: var(--color-brand);
   border-color: var(--color-brand);
@@ -155,22 +151,9 @@
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(139, 92, 246, 0.15));
   color: #EC4899;
 }
+.rem-birthday-icon svg { width: 22px; height: 22px; }
 
-.rem-birthday-icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-:root[data-theme="dark"] .rem-birthday-icon {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.25));
-  color: #F9A8D4;
-}
-
-.rem-body {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
+.rem-body { flex: 1 1 auto; min-width: 0; }
 .rem-title {
   font-size: 0.98rem;
   font-weight: 600;
@@ -178,7 +161,6 @@
   line-height: 1.3;
   word-break: break-word;
 }
-
 .rem-title .rem-years {
   font-weight: 500;
   color: var(--color-text-muted);
@@ -193,22 +175,13 @@
   font-size: 0.78rem;
   color: var(--color-text-muted);
 }
-
 .rem-meta-item {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
-
-.rem-meta-item.overdue {
-  color: var(--color-danger);
-  font-weight: 600;
-}
-
-.rem-meta-item.soon {
-  color: var(--color-warning);
-  font-weight: 600;
-}
+.rem-meta-item.overdue { color: var(--color-danger); font-weight: 600; }
+.rem-meta-item.soon { color: var(--color-warning); font-weight: 600; }
 
 .rem-birthday-info {
   display: flex;
@@ -218,21 +191,8 @@
   font-size: 0.82rem;
   color: var(--color-text-muted);
 }
-
-.rem-birthday-info .age-now {
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-.rem-birthday-info .turns-in {
-  color: #EC4899;
-  font-weight: 600;
-}
-
-:root[data-theme="dark"] .rem-birthday-info .turns-in {
-  color: #F9A8D4;
-}
-
+.rem-birthday-info .age-now { color: var(--color-text); font-weight: 600; }
+.rem-birthday-info .turns-in { color: #EC4899; font-weight: 600; }
 .rem-birthday-info .turns-today {
   color: #EC4899;
   font-weight: 700;
@@ -240,11 +200,7 @@
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
 }
-
-.rem-birthday-info .sep {
-  color: var(--color-text-subtle);
-  opacity: 0.6;
-}
+.rem-birthday-info .sep { color: var(--color-text-subtle); opacity: 0.6; }
 
 .rem-priority {
   display: inline-block;
@@ -252,19 +208,56 @@
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
 }
-
 .rem-priority.low    { background: rgba(59, 130, 246, 0.12); color: var(--color-info); }
 .rem-priority.medium { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); }
 .rem-priority.high   { background: rgba(239, 68, 68, 0.12); color: var(--color-danger); }
 
+.rem-category-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+.rem-category-chip.birthday {
+  background-color: rgba(236, 72, 153, 0.15);
+  color: #EC4899;
+}
+
+.rem-notify-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background-color: rgba(245, 158, 11, 0.12);
+  color: var(--color-warning);
+}
+.rem-notify-chip svg { width: 11px; height: 11px; }
+
+.rem-bill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: var(--color-module-bills);
+}
+
 .rem-actions {
   flex: 0 0 auto;
   display: flex;
+  flex-direction: column;
   gap: 0.15rem;
 }
-
 .rem-icon-btn {
   width: 34px;
   height: 34px;
@@ -275,15 +268,8 @@
   color: var(--color-text-subtle);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-
-.rem-icon-btn:hover {
-  background-color: var(--color-surface-2);
-  color: var(--color-text);
-}
-
-.rem-icon-btn.danger:hover {
-  color: var(--color-danger);
-}
+.rem-icon-btn:hover { background-color: var(--color-surface-2); color: var(--color-text); }
+.rem-icon-btn.danger:hover { color: var(--color-danger); }
 
 .rem-empty {
   text-align: center;
@@ -307,63 +293,18 @@
   box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
   z-index: 55;
   transition: transform 0.1s ease, background-color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
 }
-
-.fab:active {
-  transform: scale(0.94);
-}
-
-.fab:hover {
-  background-color: var(--color-brand-strong);
-}
+.fab:active { transform: scale(0.94); }
+.fab:hover { background-color: var(--color-brand-strong); }
 
 @media (min-width: 700px) {
-  .fab {
-    right: calc(50% - var(--max-width) / 2 + 1rem);
-  }
+  .fab { right: calc(50% - var(--max-width) / 2 + 1rem); }
 }
 
-.form-group {
-  margin-bottom: 0.85rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
-}
-
-.form-error {
-  color: var(--color-danger);
-  font-size: 0.85rem;
-  margin-top: 0.5rem;
-  min-height: 1.2em;
-}
-
-.form-hint {
-  font-size: 0.78rem;
-  color: var(--color-text-subtle);
-  margin-top: 0.35rem;
-  line-height: 1.35;
-}
-
-.form-toggle-link {
-  display: inline-block;
-  font-size: 0.82rem;
-  color: var(--color-brand);
-  font-weight: 600;
-  margin-top: 0.4rem;
-  cursor: pointer;
-  background: none;
-  border: 0;
-  padding: 0;
-  text-decoration: underline;
-}
-
-.form-toggle-link:hover {
-  color: var(--color-brand-strong);
-}
+.form-group { margin-bottom: 0.85rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.form-error { color: var(--color-danger); font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
+.form-hint { font-size: 0.78rem; color: var(--color-text-subtle); margin-top: 0.35rem; line-height: 1.35; }
 
 .birthday-panel {
   background-color: var(--color-surface-2);
@@ -372,87 +313,125 @@
   margin-top: 0.5rem;
   border: 1px solid var(--color-border-subtle);
 }
+.birthday-panel .form-group { margin-bottom: 0.5rem; }
+.birthday-panel .form-group:last-child { margin-bottom: 0; }
 
-.birthday-panel .form-group {
-  margin-bottom: 0.5rem;
-}
-
-.birthday-panel .form-group:last-child {
-  margin-bottom: 0;
-}
-
-.select:disabled,
-select:disabled {
+.select:disabled, select:disabled {
   opacity: 0.85;
   cursor: not-allowed;
   background-color: var(--color-surface-2);
   color: var(--color-text-muted);
 }
 
-.rem-category-chip {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background-color: var(--color-surface-2);
-  color: var(--color-text-muted);
-}
-
-.rem-category-chip.birthday {
-  background-color: rgba(236, 72, 153, 0.15);
-  color: #EC4899;
-}
-
-:root[data-theme="dark"] .rem-category-chip.birthday {
-  color: #F9A8D4;
-}
-
-.rem-notify-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background-color: rgba(245, 158, 11, 0.12);
-  color: var(--color-warning);
-}
-
-.rem-notify-chip svg {
-  width: 11px;
-  height: 11px;
-}
-
 .rem-item.birthday-today {
   background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.08));
   border-color: rgba(236, 72, 153, 0.35);
 }
+.rem-item.birthday-today .rem-title { color: #EC4899; font-weight: 700; }
 
-:root[data-theme="dark"] .rem-item.birthday-today {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.20), rgba(139, 92, 246, 0.12));
+/* Header actions */
+.header-actions-inline {
+  display: flex;
+  gap: 0.25rem;
+  flex: 0 0 auto;
 }
 
-.rem-item.birthday-today .rem-title {
-  color: #EC4899;
+/* Help content */
+.help-content { font-size: 0.9rem; line-height: 1.5; color: var(--color-text); }
+.help-content p { margin-bottom: 0.6rem; }
+.help-content p:last-child { margin-bottom: 0; }
+
+/* ---------- MINI KALENDAR ---------- */
+.mini-calendar {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 0.6rem;
+  width: 260px;
+  font-size: 0.85rem;
+}
+
+.mc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.mc-nav {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.mc-nav:hover { background-color: var(--color-surface-2); }
+
+.mc-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.mc-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 0.35rem;
+}
+.mc-day-name {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0;
+}
+
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.mc-empty { visibility: hidden; }
+
+.mc-day {
+  aspect-ratio: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-text);
+  background: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.mc-day:hover { background-color: var(--color-surface-2); }
+.mc-day.today {
+  font-weight: 800;
+  color: var(--color-brand);
+  background-color: var(--color-brand-soft);
+}
+.mc-day.selected {
+  background-color: var(--color-brand);
+  color: #ffffff;
   font-weight: 700;
 }
 
-:root[data-theme="dark"] .rem-item.birthday-today .rem-title {
-  color: #F9A8D4;
-}
+.smart-date { position: relative; }
 
 @media (max-width: 360px) {
-  .rem-birthday-icon {
-    width: 34px;
-    height: 34px;
-  }
-  .rem-birthday-icon svg {
-    width: 18px;
-    height: 18px;
-  }
-  .rem-birthday-info {
-    font-size: 0.76rem;
-  }
+  .rem-birthday-icon { width: 34px; height: 34px; }
+  .rem-birthday-icon svg { width: 18px; height: 18px; }
+  .rem-birthday-info { font-size: 0.76rem; }
+  .mini-calendar { width: 240px; }
 }
