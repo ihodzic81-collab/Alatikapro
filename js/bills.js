@@ -2049,7 +2049,7 @@
     renderInto(view);
   }
 
-  function buildHeader() {
+    function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -2080,31 +2080,11 @@
     });
 
     header.querySelector('#billsHelp').addEventListener('click', function () {
-      const overlay = document.createElement('div');
-      overlay.className = 'modal-overlay';
-      overlay.innerHTML = [
-        '<div class="modal-sheet">',
-        '  <h3 class="modal-title">' + t('bills.help.title', 'Kako rade Računi?') + '</h3>',
-        '  <div class="help-content">',
-        '    <p>' + t('bills.help.p1', 'Ovde vodiš evidenciju svih računa — struja, voda, internet, telefon, kirija...') + '</p>',
-        '    <p>' + t('bills.help.p2', 'Kada označiš račun kao plaćen, trošak se automatski evidentira u modulu Novac (rashod).') + '</p>',
-        '    <p>' + t('bills.help.p3', 'Rate su za kredite i kupovine na rate — pratiš koliko je otplaćeno i koliko je ostalo.') + '</p>',
-        '    <p>' + t('bills.help.p4', 'Čekovi su za kupovinu čekovima — uneseš ukupan iznos i broj čekova, aplikacija automatski prati realizaciju.') + '</p>',
-        '  </div>',
-        '  <div class="modal-actions">',
-        '    <button type="button" class="btn btn-primary btn-block" id="helpClose">' + t('common.close', 'Zatvori') + '</button>',
-        '  </div>',
-        '</div>'
-      ].join('');
-      document.body.appendChild(overlay);
-      overlay.querySelector('#helpClose').addEventListener('click', function () { document.body.removeChild(overlay); });
-      overlay.addEventListener('click', function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
-      requestAnimationFrame(function () { overlay.classList.add('show'); });
+      if (global.help) global.help.open('bills');
     });
 
     return header;
   }
-
   function init() {
     if (!state.month) state.month = currentMonthISO();
 
