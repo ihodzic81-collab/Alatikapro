@@ -1,11 +1,6 @@
 /* =========================================================
    ALATIKA PRO — converter.js
-   Konverter valuta:
-   - UI komponenta koja se ugrađuje bilo gde
-   - Koristi NBS kurs (preko js/nbs.js)
-   - Kopiranje rezultata u clipboard
-   - Brza zamena valuta (swap)
-   - Prikaz datuma i kursa
+   Konverter valuta + refresh dugme u modalu.
    ========================================================= */
 
 (function (global) {
@@ -29,16 +24,6 @@
     return formatted + (currencyCode ? ' ' + currencyCode : '');
   }
 
-  /* ---------- KONVERTER KOMPONENTA ---------- */
-
-  /**
-   * Pravi HTML za konverter.
-   * opts:
-   *   - compact: bool (manji prikaz, bez datuma kursa)
-   *   - fromCode: string (default 'RSD')
-   *   - toCode: string (default 'EUR')
-   *   - amount: number (default 100)
-   */
   function renderHTML(opts) {
     opts = opts || {};
     const fromCode = opts.fromCode || 'RSD';
@@ -48,28 +33,22 @@
 
     const fromOptions = global.currencies.getAll().map(function (c) {
       const selected = c.code === fromCode ? ' selected' : '';
-      const label = c.flag + ' ' + c.code;
-      return '<option value="' + c.code + '"' + selected + '>' + label + '</option>';
+      return '<option value="' + c.code + '"' + selected + '>' + c.flag + ' ' + c.code + '</option>';
     }).join('');
 
     const toOptions = global.currencies.getAll().map(function (c) {
       const selected = c.code === toCode ? ' selected' : '';
-      const label = c.flag + ' ' + c.code;
-      return '<option value="' + c.code + '"' + selected + '>' + label + '</option>';
+      return '<option value="' + c.code + '"' + selected + '>' + c.flag + ' ' + c.code + '</option>';
     }).join('');
 
     return [
       '<div class="converter' + (compact ? ' converter-compact' : '') + '" data-converter>',
-
-      /* Red 1: iznos + valuta */
       '  <div class="conv-row">',
       '    <input type="text" inputmode="decimal" class="conv-amount" data-conv-amount value="' + amount + '" placeholder="0,00" />',
       '    <select class="conv-currency" data-conv-from>' + fromOptions + '</select>',
       '  </div>',
-
-      /* Swap dugme */
       '  <div class="conv-swap-row">',
-      '    <button type="button" class="conv-swap" data-conv-swap aria-label="' + t('conv.swap', 'Zameni valute') + '">',
+      '    <button type="button" class="conv-swap" data-conv-swap>',
       '      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
       '        <polyline points="17 1 21 5 17 9"></polyline>',
       '        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>',
@@ -78,17 +57,11 @@
       '      </svg>',
       '    </button>',
       '  </div>',
-
-      /* Red 2: rezultat + valuta */
       '  <div class="conv-row">',
       '    <input type="text" class="conv-result" data-conv-result readonly placeholder="0,00" />',
       '    <select class="conv-currency" data-conv-to>' + toOptions + '</select>',
       '  </div>',
-
-      /* Info ispod */
       '  <div class="conv-info" data-conv-info></div>',
-
-      /* Dugmad */
       '  <div class="conv-actions">',
       '    <button type="button" class="conv-btn" data-conv-copy>',
       '      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">',
@@ -105,15 +78,10 @@
       '      <span>' + t('conv.reset', 'Resetuj') + '</span>',
       '    </button>',
       '  </div>',
-
       '</div>'
     ].join('');
   }
 
-  /**
-   * Povezuje event-e na konverter unutar datog root-a.
-   * Poziva se posle svakog rendera.
-   */
   function bind(root) {
     root = root || document;
     const converters = root.querySelectorAll('[data-converter]');
@@ -131,11 +99,8 @@
       const copyBtn = conv.querySelector('[data-conv-copy]');
       const resetBtn = conv.querySelector('[data-conv-reset]');
 
-      /* Učitaj NBS kurseve ako još nisu */
       function ensureRates() {
-        if (global.nbs && global.nbs.hasRates()) {
-          return Promise.resolve();
-        }
+        if (global.nbs && global.nbs.hasRates()) return Promise.resolve();
         if (!global.nbs) return Promise.reject(new Error('NBS modul nije dostupan.'));
         return global.nbs.getRates().then(function () {});
       }
@@ -153,20 +118,16 @@
 
         ensureRates().then(function () {
           const result = global.nbs.convert(amount, from, to);
-
           if (result === null) {
             resultInput.value = '—';
             infoEl.innerHTML = '<span class="conv-error">' + t('conv.error', 'Kurs nije dostupan.') + '</span>';
             return;
           }
-
           resultInput.value = formatAmount(result, '').trim();
 
-          /* Info o kursu */
           const rate1 = global.nbs.getRate(from);
           const rate2 = global.nbs.getRate(to);
           const date = global.nbs.getDate();
-          const updated = global.nbs.getUpdatedAt();
 
           let infoText = '';
           if (from === 'RSD') {
@@ -177,7 +138,6 @@
             infoText = '1 ' + from + ' = ' + formatAmount(rate1 / rate2, to).trim();
           }
 
-          /* Datum kursa */
           let dateText = '';
           if (date) {
             const d = new Date(date);
@@ -187,58 +147,44 @@
             } else {
               dateText = date;
             }
-          } else if (updated) {
-            const d = new Date(updated);
-            const locale = lang() === 'en' ? 'en-GB' : 'sr-RS';
-            dateText = d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
           }
 
-          const stale = global.nbs.getError();
-          const staleMark = stale ? ' · <span class="conv-stale">' + t('conv.stale', 'poslednji sačuvan') + '</span>' : '';
+          const source = global.nbs.getSource ? global.nbs.getSource() : '';
+          const staleMark = (source === 'base' || source === 'cache')
+            ? ' · <span class="conv-stale">' + t('conv.stale', 'poslednji sačuvan') + '</span>'
+            : '';
 
           let html = '<span class="conv-rate-info">' + infoText + '</span>';
           if (dateText) {
             html += ' · <span class="conv-rate-date">' + t('conv.date', 'na dan') + ' ' + dateText + '</span>';
           }
           html += staleMark;
-
-          /* Napomena o NBS */
-          html += '<br><span class="conv-note">' + t('conv.nbsNote', 'Referentni srednji kurs NBS. Banke i menjačnice mogu primenjivati drugačiji kurs.') + '</span>';
-
+          html += '<br><span class="conv-note">' + t('conv.nbsNote', 'Referentni kurs NBS. Banke mogu primenjivati drugačiji kurs.') + '</span>';
           infoEl.innerHTML = html;
-        }).catch(function (err) {
+        }).catch(function () {
           resultInput.value = '';
           infoEl.innerHTML = '<span class="conv-error">' + t('conv.noInternet', 'Kurs nije dostupan bez interneta.') + '</span>';
         });
       }
 
-      /* Event-i */
       amountInput.addEventListener('input', global.utils.debounce(recalc, 250));
       fromSelect.addEventListener('change', recalc);
       toSelect.addEventListener('change', recalc);
 
-      /* Swap */
       swapBtn.addEventListener('click', function () {
         const f = fromSelect.value;
         const t2 = toSelect.value;
         fromSelect.value = t2;
         toSelect.value = f;
-
-        /* Rotacija ikone */
         swapBtn.classList.add('rotating');
-        setTimeout(function () {
-          swapBtn.classList.remove('rotating');
-        }, 300);
-
+        setTimeout(function () { swapBtn.classList.remove('rotating'); }, 300);
         recalc();
       });
 
-      /* Copy */
       copyBtn.addEventListener('click', function () {
         if (!resultInput.value) return;
         const to = toSelect.value;
         const text = resultInput.value.replace(/\s/g, '') + ' ' + to;
-
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(function () {
             copyBtn.classList.add('copied');
@@ -266,7 +212,6 @@
         document.body.removeChild(ta);
       }
 
-      /* Reset */
       resetBtn.addEventListener('click', function () {
         amountInput.value = '100';
         fromSelect.value = 'RSD';
@@ -274,16 +219,11 @@
         recalc();
       });
 
-      /* Prvo računanje */
       recalc();
     });
   }
 
-  /**
-   * Otvara konverter u modalu (za Sesiju 6 — dugme "Otvori konverter").
-   */
   function openModal() {
-    /* Ukloni postojeći ako postoji */
     const existing = document.getElementById('converterModal');
     if (existing) existing.parentNode.removeChild(existing);
 
@@ -295,8 +235,18 @@
 
     overlay.innerHTML = [
       '<div class="modal-sheet">',
-      '  <h3 class="modal-title">' + t('conv.title', 'Konverter valuta') + '</h3>',
+      '  <div class="converter-modal-header">',
+      '    <h3 class="modal-title" style="margin-bottom: 0;">' + t('conv.title', 'Konverter valuta') + '</h3>',
+      '    <button type="button" class="conv-modal-refresh" id="convModalRefresh" aria-label="' + t('rates.refresh', 'Osveži') + '">',
+      '      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">',
+      '        <polyline points="23 4 23 10 17 10"></polyline>',
+      '        <polyline points="1 20 1 14 7 14"></polyline>',
+      '        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+      '      </svg>',
+      '    </button>',
+      '  </div>',
       renderHTML({ amount: 100, fromCode: 'RSD', toCode: 'EUR' }),
+      '  <div class="conv-modal-updated" id="convModalUpdated"></div>',
       '  <div class="modal-actions">',
       '    <button type="button" class="btn btn-secondary" id="convClose">' + t('common.close', 'Zatvori') + '</button>',
       '  </div>',
@@ -306,20 +256,81 @@
     document.body.appendChild(overlay);
     bind(overlay);
 
-    overlay.querySelector('#convClose').addEventListener('click', function () {
+    const updatedEl = overlay.querySelector('#convModalUpdated');
+
+    function updateUpdatedInfo() {
+      if (!updatedEl || !global.nbs) return;
+      const updated = global.nbs.getUpdatedAt();
+      const source = global.nbs.getSource ? global.nbs.getSource() : '';
+      if (!updated) { updatedEl.textContent = ''; return; }
+      const diff = Date.now() - updated;
+      const mins = Math.floor(diff / 60000);
+      let timeStr = '';
+      if (mins < 1) timeStr = t('rates.justNow', 'upravo sada');
+      else if (mins < 60) timeStr = t('rates.minAgo', 'pre') + ' ' + mins + ' ' + t('rates.min', 'min');
+      else {
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) timeStr = t('rates.hourAgo', 'pre') + ' ' + hours + ' ' + t('rates.hours', 'h');
+        else {
+          const days = Math.floor(hours / 24);
+          timeStr = t('rates.dayAgo', 'pre') + ' ' + days + ' ' + t('rates.days', 'd');
+        }
+      }
+      let txt = t('rates.updated', 'Ažurirano') + ': ' + timeStr;
+      if (source === 'base') txt += ' · ' + t('rates.offline', 'offline');
+      else if (source === 'cache') txt += ' · ' + t('rates.fromCache', 'iz keša');
+      updatedEl.textContent = txt;
+    }
+    updateUpdatedInfo();
+
+    const refreshBtn = overlay.querySelector('#convModalRefresh');
+    refreshBtn.addEventListener('click', function () {
+      if (refreshBtn.classList.contains('loading')) return;
+      refreshBtn.classList.add('loading');
+      if (global.home && global.home.showToast) {
+        global.home.showToast(t('rates.refreshing', 'Osvežavam kurs...'));
+      }
+      global.nbs.getRates(true).then(function () {
+        /* Resetuj bind flag da se ponovo pokrenu konverzije */
+        overlay.querySelectorAll('[data-converter]').forEach(function (c) {
+          delete c.dataset.bound;
+        });
+        bind(overlay);
+        updateUpdatedInfo();
+        refreshBtn.classList.remove('loading');
+        refreshBtn.classList.add('success');
+        setTimeout(function () { refreshBtn.classList.remove('success'); }, 1200);
+        const source = global.nbs.getSource ? global.nbs.getSource() : '';
+        if (source === 'api') {
+          if (global.home && global.home.showToast) {
+            global.home.showToast(t('rates.refreshed', '✓ Kursna lista osvežena'));
+          }
+        } else {
+          if (global.home && global.home.showToast) {
+            global.home.showToast(t('rates.refreshedOffline', 'Kurs osvežen (offline)'));
+          }
+        }
+      }).catch(function () {
+        refreshBtn.classList.remove('loading');
+        if (global.home && global.home.showToast) {
+          global.home.showToast(t('rates.refreshFailed', 'Ne mogu da osvežim — koristi se keš'));
+        }
+      });
+    });
+
+    const interval = setInterval(updateUpdatedInfo, 30000);
+
+    function closeModal() {
+      clearInterval(interval);
       overlay.classList.remove('show');
       setTimeout(function () {
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       }, 200);
-    });
+    }
 
+    overlay.querySelector('#convClose').addEventListener('click', closeModal);
     overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) {
-        overlay.classList.remove('show');
-        setTimeout(function () {
-          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-        }, 200);
-      }
+      if (e.target === overlay) closeModal();
     });
 
     requestAnimationFrame(function () {
