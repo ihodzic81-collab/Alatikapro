@@ -1019,3 +1019,16 @@
     currentAge: currentAge
   };
 })(window);
+  global.reminders = {
+    init: init,
+    loadAll: loadAll,
+    _state: state,
+    openForm: openForm,   /* <-- DODAJ OVO */
+    DEFAULT_CATEGORIES: DEFAULT_CATEGORIES.slice(),
+    getAllCategories: getAllCategories,
+    addCustomCategory: addCustomCategory,
+    effectiveDate: effectiveDate,
+    isBirthday: isBirthday,
+    parseBirthDate: parseBirthDate,
+    currentAge: currentAge
+  };
