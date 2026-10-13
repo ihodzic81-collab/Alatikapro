@@ -6,8 +6,6 @@
 (function (global) {
   'use strict';
 
-  /* ---------- ID / ESCAPE / TRUNCATE ---------- */
-
   function uid(prefix) {
     const t = Date.now().toString(36);
     const r = Math.random().toString(36).slice(2, 10);
@@ -43,7 +41,7 @@
     };
   }
 
-  /* ---------- DATUM — OSNOVNO ---------- */
+  /* ---------- DATUM ---------- */
 
   function pad2(n) {
     return String(n).padStart(2, '0');
@@ -93,14 +91,13 @@
     if (!d) return '';
     const day = d.getDate();
     d.setMonth(d.getMonth() + Number(n || 0));
-    /* Ako je dan prekoračen (npr. 31. u mesecu sa 30 dana) — vrati na poslednji dan */
     if (d.getDate() < day) {
       d.setDate(0);
     }
     return toISODate(d);
   }
 
-  /* ---------- FORMAT DATUMA — podržava DMY i MDY ---------- */
+  /* ---------- FORMAT DATUMA ---------- */
 
   const LS_DATE_FORMAT = 'settings.dateFormat';
   const DEFAULT_DATE_FORMAT = 'DMY';
@@ -120,9 +117,6 @@
     } catch (e) {}
   }
 
-  /**
-   * Formatira ISO datum (YYYY-MM-DD) u prikaz po izabranom formatu.
-   */
   function formatDate(iso, lang) {
     if (!iso) return '';
     const d = parseISODate(iso);
@@ -139,13 +133,11 @@
     return day + '/' + month + '/' + year;
   }
 
-  /* ---------- PAMETAN DATE INPUT ---------- */
+  /* ---------- PAMETAN DATE INPUT (isključivo tekstualni) ---------- */
 
   /**
-   * Vraća HTML za pametan date input (tekstualni input + skriveni native date).
-   * opts:
-   *   - required: bool
-   *   - placeholder: string (default "DD/MM/GGGG")
+   * Vraća HTML za pametan date input (samo tekstualni, bez native date).
+   * Format zavisi od getDateFormat(): DMY ili MDY.
    */
   function dateInputHTML(name, value, opts) {
     opts = opts || {};
@@ -157,10 +149,10 @@
     const inputId = 'smartDate_' + name + '_' + Math.random().toString(36).slice(2, 8);
 
     return [
-      '<div class="smart-date" data-smart-date="' + name + '">',
+      '<div class="smart-date" data-smart-date="' + name + '" data-format="' + fmt + '">',
       '  <input type="text" inputmode="numeric" autocomplete="off"',
       '         class="input" id="' + inputId + '"',
-      '         name="' + name + '_display"',
+      '         name="' + name + '"',
       '         value="' + escapeHtml(displayValue) + '"',
       '         placeholder="' + placeholder + '"',
       '         maxlength="10"' + required + ' />',
@@ -172,20 +164,15 @@
       '      <line x1="16" y1="3" x2="16" y2="7"></line>',
       '    </svg>',
       '  </button>',
-      '  <input type="date" class="smart-date-hidden"',
-      '         name="' + name + '"',
-      '         value="' + escapeHtml(value || '') + '"',
-      '         tabindex="-1" aria-hidden="true" />',
       '</div>'
     ].join('');
   }
 
   /**
-   * Povezuje sve pametne date inpute unutar datog root-a.
-   * - Formatira unos dok korisnik kuca (DD / MM / GGGG)
+   * Povezuje sve pametne date inpute.
+   * - Formatira unos dok korisnik kuca
    * - Validira datum
-   * - Sinhronizuje sa skrivenim native date inputom
-   * - Otvara native kalendar na klik ikonice
+   * - Ikonica kalendara otvara mali kalendar (custom)
    */
   function bindDateInputs(root) {
     root = root || document;
@@ -195,91 +182,67 @@
       if (wrap.dataset.bound) return;
       wrap.dataset.bound = '1';
 
-      const display = wrap.querySelector('input[type="text"]');
-      const hidden = wrap.querySelector('input[type="date"]');
+      const input = wrap.querySelector('input[type="text"]');
       const iconBtn = wrap.querySelector('.smart-date-icon');
+      const fmt = wrap.getAttribute('data-format') || getDateFormat();
 
-      if (!display || !hidden) return;
+      if (!input) return;
 
       /* Formatiraj unos dok korisnik kuca */
-      display.addEventListener('input', function () {
-        const raw = display.value.replace(/[^\d]/g, '').slice(0, 8);
-        const fmt = getDateFormat();
+      input.addEventListener('input', function () {
+        const raw = input.value.replace(/[^\d]/g, '').slice(0, 8);
         let out = '';
 
         if (fmt === 'MDY') {
-          /* MM / DD / GGGG */
           if (raw.length <= 2) out = raw;
           else if (raw.length <= 4) out = raw.slice(0, 2) + '/' + raw.slice(2);
           else out = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
         } else {
-          /* DD / MM / GGGG */
           if (raw.length <= 2) out = raw;
           else if (raw.length <= 4) out = raw.slice(0, 2) + '/' + raw.slice(2);
           else out = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4);
         }
 
-        display.value = out;
-        display.classList.remove('input-error');
-
-        /* Sinhronizuj sa skrivenim */
-        const iso = parseDisplayToISO(out);
-        hidden.value = iso || '';
+        input.value = out;
+        input.classList.remove('input-error');
       });
 
       /* Na blur — validiraj i normalizuj */
-      display.addEventListener('blur', function () {
-        const iso = parseDisplayToISO(display.value);
+      input.addEventListener('blur', function () {
+        const iso = parseDisplayToISO(input.value, fmt);
         if (!iso) {
-          display.classList.add('input-error');
-          hidden.value = '';
+          if (input.value.trim() === '') {
+            input.classList.remove('input-error');
+            return;
+          }
+          input.classList.add('input-error');
           return;
         }
-        display.classList.remove('input-error');
-        hidden.value = iso;
-        display.value = formatDate(iso);
+        input.classList.remove('input-error');
+        input.value = formatDate(iso);
       });
 
-      /* Klik na ikonicu — otvori native kalendar */
+      /* Klik na ikonicu — otvori mali custom kalendar */
       if (iconBtn) {
         iconBtn.addEventListener('click', function () {
-          /* Ako hidden ima vrednost, sinhronizuj display pre otvaranja */
-          if (hidden.value) {
-            display.value = formatDate(hidden.value);
-          }
-          if (typeof hidden.showPicker === 'function') {
-            try { hidden.showPicker(); } catch (e) { hidden.click(); }
-          } else {
-            hidden.click();
-          }
+          openMiniCalendar(wrap, input, fmt);
         });
       }
-
-      /* Kada se native date promeni — sinhronizuj display */
-      hidden.addEventListener('change', function () {
-        if (hidden.value) {
-          display.value = formatDate(hidden.value);
-          display.classList.remove('input-error');
-        } else {
-          display.value = '';
-        }
-      });
     });
   }
 
   /**
-   * Parsira prikaz (DD/MM/GGGG ili MM/DD/GGGG) u ISO (YYYY-MM-DD).
-   * Vraća '' ako nije validan.
+   * Parsira prikaz u ISO (YYYY-MM-DD).
    */
-  function parseDisplayToISO(display) {
+  function parseDisplayToISO(display, fmt) {
     if (!display) return '';
     const parts = String(display).split('/');
     if (parts.length !== 3) return '';
 
-    const fmt = getDateFormat();
+    const f = fmt || getDateFormat();
     let day, month, year;
 
-    if (fmt === 'MDY') {
+    if (f === 'MDY') {
       month = Number(parts[0]);
       day = Number(parts[1]);
       year = Number(parts[2]);
@@ -302,41 +265,129 @@
   }
 
   /**
-   * Vraća vrednost datuma iz forme (iz skrivenog native inputa).
+   * Otvara mali kalendar ispod inputa.
    */
+  function openMiniCalendar(wrap, input, fmt) {
+    /* Ukloni postojeći */
+    const existing = wrap.querySelector('.mini-calendar');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    const currentISO = parseDisplayToISO(input.value, fmt);
+    const currentDate = currentISO ? parseISODate(currentISO) : new Date();
+    let viewYear = currentDate.getFullYear();
+    let viewMonth = currentDate.getMonth();
+
+    const cal = document.createElement('div');
+    cal.className = 'mini-calendar';
+
+    function render() {
+      const firstDay = new Date(viewYear, viewMonth, 1);
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const startWeekday = (firstDay.getDay() + 6) % 7; /* Ponedeljak = 0 */
+
+      const lang = (global.i18n && global.i18n.getLang) ? global.i18n.getLang() : 'sr';
+      const monthNames = lang === 'en'
+        ? ['January','February','March','April','May','June','July','August','September','October','November','December']
+        : ['Januar','Februar','Mart','April','Maj','Jun','Jul','Avgust','Septembar','Oktobar','Novembar','Decembar'];
+      const dayNames = lang === 'en'
+        ? ['Mo','Tu','We','Th','Fr','Sa','Su']
+        : ['Po','Ut','Sr','Če','Pe','Su','Ne'];
+
+      let html = [
+        '<div class="mc-header">',
+        '  <button type="button" class="mc-nav" data-mc-dir="-1">‹</button>',
+        '  <span class="mc-title">' + monthNames[viewMonth] + ' ' + viewYear + '</span>',
+        '  <button type="button" class="mc-nav" data-mc-dir="1">›</button>',
+        '</div>',
+        '<div class="mc-days">'
+      ];
+
+      dayNames.forEach(function (d) {
+        html.push('<span class="mc-day-name">' + d + '</span>');
+      });
+      html.push('</div>');
+
+      html.push('<div class="mc-grid">');
+
+      for (let i = 0; i < startWeekday; i++) {
+        html.push('<span class="mc-empty"></span>');
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const iso = viewYear + '-' + pad2(viewMonth + 1) + '-' + pad2(day);
+        const isToday = iso === todayISO();
+        const isSelected = currentISO === iso;
+        let cls = 'mc-day';
+        if (isToday) cls += ' today';
+        if (isSelected) cls += ' selected';
+        html.push('<button type="button" class="' + cls + '" data-mc-day="' + iso + '">' + day + '</button>');
+      }
+
+      html.push('</div>');
+      cal.innerHTML = html.join('');
+
+      cal.querySelectorAll('[data-mc-dir]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const dir = Number(btn.getAttribute('data-mc-dir'));
+          viewMonth += dir;
+          if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+          if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+          render();
+        });
+      });
+
+      cal.querySelectorAll('[data-mc-day]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const iso = btn.getAttribute('data-mc-day');
+          input.value = formatDate(iso);
+          input.classList.remove('input-error');
+          cal.parentNode.removeChild(cal);
+        });
+      });
+    }
+
+    render();
+    wrap.appendChild(cal);
+
+    /* Zatvori na klik van */
+    setTimeout(function () {
+      document.addEventListener('click', function closeCal(e) {
+        if (!cal.contains(e.target) && e.target !== input && e.target !== iconBtn) {
+          if (cal.parentNode) cal.parentNode.removeChild(cal);
+          document.removeEventListener('click', closeCal);
+        }
+      });
+    }, 10);
+  }
+
   function getDateValue(root, name) {
     if (!root) return '';
-    const hidden = root.querySelector('input[type="date"][name="' + name + '"]');
-    if (hidden && hidden.value) return hidden.value;
-    const display = root.querySelector('input[type="text"][name="' + name + '_display"]');
-    if (display && display.value) return parseDisplayToISO(display.value);
+    const input = root.querySelector('input[type="text"][name="' + name + '"]');
+    if (input && input.value) {
+      const fmt = (input.closest('[data-smart-date]') || {}).getAttribute
+        ? input.closest('[data-smart-date]').getAttribute('data-format')
+        : getDateFormat();
+      return parseDisplayToISO(input.value, fmt);
+    }
     return '';
   }
 
-  /**
-   * Postavlja vrednost datuma u formu.
-   */
   function setDateValue(root, name, iso) {
     if (!root) return;
-    const hidden = root.querySelector('input[type="date"][name="' + name + '"]');
-    const display = root.querySelector('input[type="text"][name="' + name + '_display"]');
-    if (hidden) hidden.value = iso || '';
-    if (display) display.value = iso ? formatDate(iso) : '';
+    const input = root.querySelector('input[type="text"][name="' + name + '"]');
+    if (input) input.value = iso ? formatDate(iso) : '';
   }
 
   /* ---------- PARSIRANJE IZNOSA ---------- */
 
-  /**
-   * Parsira string u broj. Podržava i zarez i tačku.
-   */
   function parseAmount(value) {
     if (value === null || value === undefined) return 0;
     if (typeof value === 'number') return value;
     let s = String(value).trim();
     if (!s) return 0;
-    /* Ukloni sve osim cifara, zareza i tačke */
     s = s.replace(/[^\d.,-]/g, '');
-    /* Ako ima oba — zarez je decimalni, tačka je separator hiljada */
     if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
       s = s.replace(/\./g, '');
       s = s.replace(',', '.');
@@ -375,8 +426,6 @@
     }
     return node;
   }
-
-  /* ---------- EXPORT ---------- */
 
   global.utils = {
     uid: uid,
