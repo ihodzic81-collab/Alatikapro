@@ -98,23 +98,21 @@
   }
 
   function onPopState(e) {
-    /* 1. Ako ima otvoren modal — zatvori ga */
+    /* 1. Ako ima otvoren modal — zatvori ga i dodaj novi guard */
     if (hasOpenModal()) {
       closeOpenModal();
-      pushHistory({ modalGuard: true });
+      pushHistory({ screen: 'modal-closed' });
       return;
     }
 
     /* 2. Ako nismo na Početnoj — idi na Početnu */
     if (!isOnHome()) {
       goHome();
-      pushHistory({ homeGuard: true });
+      pushHistory({ screen: 'home-guard' });
       return;
     }
 
     /* 3. Na Početnoj — pitaj "Izaći?" SAMO ako je stvarno pritisnut back */
-    /* Provera: ako je prethodni state bio 'home-guard' ili 'home', 
-       znači da je korisnik već na home i pritisnuo je back. */
     const prev = e.state;
     if (prev && (prev.screen === 'home' || prev.screen === 'home-guard')) {
       confirmExit().then(function (shouldExit) {
@@ -124,7 +122,6 @@
             try { history.back(); } catch (err) {}
           }, 100);
         } else {
-          /* Ostani u aplikaciji — vrati guard */
           pushHistory({ screen: 'home-guard' });
         }
       });
@@ -135,16 +132,13 @@
   }
 
   function init() {
-    /* Prvi history entry — home */
     try {
       history.replaceState({ app: 'alatikapro', screen: 'home' }, '');
     } catch (e) {}
 
-    /* Dodaj guard da back ima šta da "pojede" */
     pushHistory({ screen: 'home' });
 
     window.addEventListener('popstate', onPopState);
-    /* UKLONJEN interceptAnchorClicks — on je pravio duple history entry-je */
   }
 
   global.backButton = {
