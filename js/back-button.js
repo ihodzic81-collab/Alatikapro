@@ -1,14 +1,17 @@
 /* =========================================================
    ALATIKA PRO — back-button.js
-   Verzija: 4.0 — minimalna i funkcionalna
-   Cilj: back dugme zatvara modal pre nego što browser
-   promeni hash. Ne izbacuje iz aplikacije dok si u modulu.
+   Verzija: 5.0 — potpuno nova logika
+   Cilj: back dugme ne izbacuje iz aplikacije.
    ========================================================= */
 
 (function (global) {
   'use strict';
 
-  let modalOpen = false;
+  /* Broj aktivnih "guard" entry-ja u history-ju.
+     Svaki put kada uđemo u modul ili otvorimo modal,
+     povećamo broj. Kada pritisnemo back, smanjimo.
+     Kada je broj 0, browser sme da izađe. */
+  let guardCount = 0;
 
   function hasOpenModal() {
     return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
@@ -33,22 +36,54 @@
     return false;
   }
 
+  function pushGuard() {
+    guardCount++;
+    try {
+      history.pushState({ app: 'alatikapro', guard: guardCount, ts: Date.now() }, '');
+    } catch (e) {}
+  }
+
+  function isOnHome() {
+    const route = global.router && global.router.current ? global.router.current() : 'home';
+    return route === 'home';
+  }
+
+  function onPopState() {
+    /* Ako je modal otvoren — zatvori ga i blokiraj navigaciju */
+    if (hasOpenModal()) {
+      closeOpenModal();
+      pushGuard();
+      return;
+    }
+
+    /* Ako nismo na home — vrati se na home i blokiraj */
+    if (!isOnHome()) {
+      if (global.router && global.router.navigate) {
+        global.router.navigate('home');
+      }
+      pushGuard();
+      return;
+    }
+
+    /* Na home smo — pusti browser da izađe (normalno ponašanje) */
+    /* Ne radimo ništa, browser će izaći iz sajta */
+  }
+
   /**
-   * Kada se otvori modal, dodaj history entry.
-   * Kada se zatvori, ne diraj history — ostavi ga kao guard.
+   * Kada se otvori modal, dodaj guard entry.
+   * Kada se zatvori, ne diraj — guard ostaje.
    */
   function watchModals() {
+    let wasOpen = false;
     const observer = new MutationObserver(function () {
       const nowOpen = hasOpenModal();
-      if (nowOpen && !modalOpen) {
-        /* Modal se upravo otvorio — dodaj history entry */
-        modalOpen = true;
-        try {
-          history.pushState({ app: 'alatikapro', modal: true, ts: Date.now() }, '');
-        } catch (e) {}
-      } else if (!nowOpen && modalOpen) {
-        /* Modal se upravo zatvorio — ostavi history entry kao guard */
-        modalOpen = false;
+      if (nowOpen && !wasOpen) {
+        /* Modal se upravo otvorio */
+        wasOpen = true;
+        pushGuard();
+      } else if (!nowOpen && wasOpen) {
+        /* Modal se upravo zatvorio */
+        wasOpen = false;
       }
     });
 
@@ -61,35 +96,37 @@
   }
 
   /**
-   * Kada korisnik pritisne back:
-   * - Ako je modal otvoren → zatvori ga i zaustavi navigaciju (ostani na istoj ruti).
-   * - Ako nije modal, pusti browser da radi svoje (vrati na prethodni hash).
+   * Kada uđemo u modul, dodaj guard entry.
    */
-  function onPopState() {
-    /* Ako je modal otvoren u trenutku back-a, zatvori ga i vrati se napred */
-    if (hasOpenModal()) {
-      closeOpenModal();
-      /* Vrati history entry da browser ne bi otišao nazad */
-      try {
-        history.pushState({ app: 'alatikapro', modal: false, ts: Date.now() }, '');
-      } catch (e) {}
+  function watchRoutes() {
+    if (global.router && global.router.onRouteChange) {
+      global.router.onRouteChange(function (route) {
+        /* Ako nismo na home, dodaj guard */
+        if (route !== 'home') {
+          pushGuard();
+        }
+      });
     }
-    /* Ako nema modala, pusti browser da izvrši normalnu navigaciju kroz hash */
   }
 
   function init() {
     /* Prvi state */
     try {
-      history.replaceState({ app: 'alatikapro', screen: 'home' }, '');
+      history.replaceState({ app: 'alatikapro', screen: 'home', guard: 0 }, '');
     } catch (e) {}
+
+    /* Dodaj inicijalni guard da back na home ne izađe odmah */
+    pushGuard();
 
     window.addEventListener('popstate', onPopState);
     watchModals();
+    watchRoutes();
   }
 
   global.backButton = {
     init: init,
     hasOpenModal: hasOpenModal,
-    closeOpenModal: closeOpenModal
+    closeOpenModal: closeOpenModal,
+    pushGuard: pushGuard
   };
 })(window);
