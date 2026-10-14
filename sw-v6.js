@@ -12,7 +12,7 @@ const CORE_ASSETS = [
   './js/profile.js', './js/back-button-v6.js', './js/help.js', './js/home.js',
   './js/settings.js', './js/reminders.js', './js/bills.js', './js/items.js',
   './js/money.js', './js/app.js',
-  './icons/icon-192.png', './icons/icon-512.png'
+  './icons/web-app-manifest-192x192.png', './icons/web-app-manifest-512x512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -34,11 +34,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
   const url = new URL(req.url);
+
   if (url.origin !== self.location.origin) {
     event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
+
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).then((res) => {
@@ -49,6 +52,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
