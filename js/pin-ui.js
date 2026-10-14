@@ -1,6 +1,6 @@
 /* =========================================================
    ALATIKA PRO — pin-ui.js
-   PIN ekran sa automatskom proverom.
+   PIN ekran sa automatskom proverom (po kartici).
    ========================================================= */
 
 (function (global) {
@@ -10,9 +10,10 @@
     overlay: null,
     onSuccess: null,
     onCancel: null,
+    moduleName: null,
     title: '',
     subtitle: '',
-    mode: 'unlock'
+    mode: 'unlock' /* unlock | set | confirm */
   };
 
   function tr(key, fallback) {
@@ -60,7 +61,6 @@
 
   let currentPin = '';
   let firstPin = null;
-  let newPin = null;
   let processing = false;
 
   function updateDots() {
@@ -94,7 +94,6 @@
       state.overlay = null;
       currentPin = '';
       firstPin = null;
-      newPin = null;
       processing = false;
     }, 180);
   }
@@ -104,6 +103,7 @@
 
     state.onSuccess = opts.onSuccess || null;
     state.onCancel = opts.onCancel || null;
+    state.moduleName = opts.moduleName || null;
     state.mode = opts.mode || 'unlock';
 
     const overlay = buildOverlay();
@@ -162,7 +162,6 @@
     currentPin += key;
     updateDots();
     if (currentPin.length === 4) {
-      /* Odmah procesuiraj — bez čekanja potvrde */
       processing = true;
       setTimeout(processPin, 120);
     }
@@ -172,22 +171,22 @@
     if (!state.overlay) return;
     const pin = currentPin;
 
-    /* UNLOCK */
+    /* ---------- UNLOCK ---------- */
     if (state.mode === 'unlock') {
-      global.pin.verifyPin(pin).then(function (ok) {
+      global.pin.verifyModulePin(state.moduleName, pin).then(function (ok) {
         if (!state.overlay) return;
         if (ok) {
+          global.pin.markUnlocked(state.moduleName);
           const cb = state.onSuccess;
           closeOverlay();
           if (cb) cb();
         } else {
-          const secs = global.pin.getRemainingLockSeconds();
+          const secs = global.pin.getRemainingLockSeconds(state.moduleName);
           if (secs > 0) {
             showError(tr('pin.tooMany', 'Previše pokušaja. Pokušaj za ') + secs + 's.');
           } else {
             showError(tr('pin.wrong', 'Pogrešan PIN. Pokušaj ponovo.'));
           }
-          /* Vibriraj ako je podržano */
           if (navigator.vibrate) navigator.vibrate(200);
           resetInput();
         }
@@ -195,7 +194,7 @@
       return;
     }
 
-    /* SET — prvi unos */
+    /* ---------- SET (postavljanje PIN-a za karticu) ---------- */
     if (state.mode === 'set') {
       if (!firstPin) {
         firstPin = pin;
@@ -217,7 +216,7 @@
         processing = false;
         return;
       }
-      global.pin.setPin(pin).then(function () {
+      global.pin.setModulePin(state.moduleName, pin).then(function () {
         const cb = state.onSuccess;
         closeOverlay();
         if (cb) cb();
@@ -228,62 +227,14 @@
       });
       return;
     }
-
-    /* CHANGE — stari PIN */
-    if (state.mode === 'change') {
-      global.pin.verifyPin(pin).then(function (ok) {
-        if (!state.overlay) return;
-        if (!ok) {
-          showError(tr('pin.wrong', 'Pogrešan PIN.'));
-          if (navigator.vibrate) navigator.vibrate(200);
-          resetInput();
-          return;
-        }
-        firstPin = pin;
-        currentPin = '';
-        updateDots();
-        state.overlay.querySelector('#pinTitle').textContent = tr('pin.new', 'Novi PIN');
-        state.overlay.querySelector('#pinSubtitle').textContent = '';
-        state.mode = 'change-new';
-        processing = false;
-      });
-      return;
-    }
-
-    /* CHANGE-NEW */
-    if (state.mode === 'change-new') {
-      newPin = pin;
-      currentPin = '';
-      updateDots();
-      state.overlay.querySelector('#pinTitle').textContent = tr('pin.confirm', 'Potvrdi PIN');
-      state.overlay.querySelector('#pinSubtitle').textContent = tr('pin.confirmSub', 'Ponovo unesi isti PIN.');
-      state.mode = 'change-confirm';
-      processing = false;
-      return;
-    }
-
-    /* CHANGE-CONFIRM */
-    if (state.mode === 'change-confirm') {
-      if (newPin !== pin) {
-        showError(tr('pin.mismatch', 'PIN-ovi se ne poklapaju.'));
-        if (navigator.vibrate) navigator.vibrate(200);
-        currentPin = '';
-        updateDots();
-        state.mode = 'change-new';
-        state.overlay.querySelector('#pinTitle').textContent = tr('pin.new', 'Novi PIN');
-        processing = false;
-        return;
-      }
-      global.pin.setPin(pin).then(function () {
-        const cb = state.onSuccess;
-        closeOverlay();
-        if (cb) cb();
-      });
-      return;
-    }
   }
 
-  function promptUnlock(moduleName, onSuccess) {
+  /* ---------- JAVNE FUNKCIJE ---------- */
+
+  /**
+   * Traži PIN za otključavanje kartice.
+   */
+  function promptUnlock(moduleName, onSuccess, onCancel) {
     const titles = {
       reminders: tr('pin.unlock.reminders', 'Otključaj Podsetnike'),
       bills: tr('pin.unlock.bills', 'Otključaj Račune'),
@@ -292,33 +243,30 @@
     };
     openOverlay({
       mode: 'unlock',
+      moduleName: moduleName,
       title: titles[moduleName] || tr('pin.title', 'Unesi PIN'),
       subtitle: tr('pin.enter4', 'Unesi 4-cifreni PIN.'),
-      onSuccess: onSuccess
+      onSuccess: onSuccess,
+      onCancel: onCancel
     });
   }
 
-  function promptSetPin(onSuccess) {
+  /**
+   * Postavlja PIN za karticu.
+   */
+  function promptSetPin(moduleName, onSuccess, onCancel) {
     openOverlay({
       mode: 'set',
+      moduleName: moduleName,
       title: tr('pin.set', 'Postavi PIN'),
       subtitle: tr('pin.setSub', 'Izaberi 4-cifreni PIN.'),
-      onSuccess: onSuccess
-    });
-  }
-
-  function promptChangePin(onSuccess) {
-    openOverlay({
-      mode: 'change',
-      title: tr('pin.old', 'Stari PIN'),
-      subtitle: tr('pin.oldSub', 'Unesi postojeći PIN.'),
-      onSuccess: onSuccess
+      onSuccess: onSuccess,
+      onCancel: onCancel
     });
   }
 
   global.pinUI = {
     promptUnlock: promptUnlock,
-    promptSetPin: promptSetPin,
-    promptChangePin: promptChangePin
+    promptSetPin: promptSetPin
   };
 })(window);
