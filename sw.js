@@ -1,8 +1,7 @@
 /* Alatika Pro — Service Worker
-   Verzija: 1.0.3
-   Svrha: offline shell, keširanje statičkih resursa. */
+   Verzija: 1.0.4 */
 
-const CACHE_NAME = 'alatikapro-v1.0.3';
+const CACHE_NAME = 'alatikapro-v1.0.4';
 
 const CORE_ASSETS = [
   './',
@@ -49,9 +48,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return Promise.all(
-        CORE_ASSETS.map((url) =>
-          cache.add(url).catch(() => null)
-        )
+        CORE_ASSETS.map((url) => cache.add(url).catch(() => null))
       );
     }).then(() => self.skipWaiting())
   );
@@ -61,12 +58,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-          return null;
-        })
+        keys.map((key) => key !== CACHE_NAME ? caches.delete(key) : null)
       );
     }).then(() => self.clients.claim())
   );
@@ -74,15 +66,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
   if (url.origin !== self.location.origin) {
-    event.respondWith(
-      fetch(req).catch(() => caches.match(req))
-    );
+    event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
 
