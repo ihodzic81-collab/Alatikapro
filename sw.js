@@ -1,21 +1,45 @@
 /* Alatika Pro — Service Worker
-   Verzija: 1.0.0
+   Verzija: 1.0.1
    Svrha: offline shell, keširanje statičkih resursa. */
 
-const CACHE_NAME = 'alatikapro-v1.0.0';
+const CACHE_NAME = 'alatikapro-v1.0.1';
 
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './sw.js',
   './css/base.css',
   './css/theme.css',
   './css/layout.css',
+  './css/modules.css',
+  './css/pin.css',
+  './css/profile.css',
+  './css/reminders.css',
+  './css/bills.css',
+  './css/items.css',
+  './css/money.css',
+  './css/rates.css',
   './js/i18n.js',
   './js/storage.js',
   './js/state.js',
   './js/utils.js',
+  './js/currencies.js',
+  './js/nbs.js',
+  './js/converter.js',
+  './js/rates-widget.js',
   './js/router.js',
+  './js/pin.js',
+  './js/pin-ui.js',
+  './js/profile.js',
+  './js/back-button.js',
+  './js/help.js',
+  './js/home.js',
+  './js/settings.js',
+  './js/reminders.js',
+  './js/bills.js',
+  './js/items.js',
+  './js/money.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
