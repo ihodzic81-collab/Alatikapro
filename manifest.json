@@ -2,15 +2,17 @@
   "name": "Alatika Pro",
   "short_name": "Alatika",
   "description": "Lični organizator: podsetnici, računi, dokumenta, novac.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#F5F6FA",
   "theme_color": "#6C5CE7",
   "lang": "sr",
   "dir": "ltr",
   "categories": ["productivity", "utilities", "finance"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -19,27 +21,39 @@
       "purpose": "any"
     },
     {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
       "name": "Podsetnici",
       "short_name": "Podsetnici",
-      "url": "./index.html#reminders"
+      "url": "./#reminders"
     },
     {
       "name": "Računi",
       "short_name": "Računi",
-      "url": "./index.html#bills"
+      "url": "./#bills"
     },
     {
       "name": "Novac",
       "short_name": "Novac",
-      "url": "./index.html#money"
+      "url": "./#money"
     }
   ]
 }
