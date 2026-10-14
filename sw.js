@@ -1,8 +1,8 @@
 /* Alatika Pro — Service Worker
-   Verzija: 1.0.1
+   Verzija: 1.0.2
    Svrha: offline shell, keširanje statičkih resursa. */
 
-const CACHE_NAME = 'alatikapro-v1.0.1';
+const CACHE_NAME = 'alatikapro-v1.0.2';
 
 const CORE_ASSETS = [
   './',
@@ -79,7 +79,6 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  /* Ne keširamo eksterne pozive (npr. NBS kursna lista). */
   if (url.origin !== self.location.origin) {
     event.respondWith(
       fetch(req).catch(() => caches.match(req))
@@ -87,7 +86,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* Za HTML navigaciju: mreža prvo, pa keš, pa index.html. */
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -101,7 +99,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* Za ostale fajlove: keš prvo, pa mreža. */
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
