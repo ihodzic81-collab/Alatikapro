@@ -48,8 +48,8 @@
   };
 
   /* API za osvežavanje */
-  const API_URL = 'https://api.frankfurter.dev/v1/latest?base=EUR';
-  const CORS_PROXY = 'https://corsproxy.io/?url=' + encodeURIComponent(API_URL);
+  const API_URL = 'https://corsproxy.io/?url=' + encodeURIComponent('https://api.frankfurter.dev/v1/latest?base=EUR');
+   const CORS_PROXY = 'https://corsproxy.io/?url=' + encodeURIComponent(API_URL);
 
   const state = {
     rates: null,
