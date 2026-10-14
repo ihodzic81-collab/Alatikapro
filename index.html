@@ -164,29 +164,23 @@
   <script src="js/money.js"></script>
   <script src="js/app.js"></script>
 
- <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      // Prvo odjavi sve postojeće service workere da bi se očistio stari keš
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        var promises = registrations.map(function (reg) {
-          return reg.unregister();
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          var promises = registrations.map(function (reg) {
+            return reg.unregister();
+          });
+          return Promise.all(promises);
+        }).then(function () {
+          return navigator.serviceWorker.register('sw.js?v=3');
+        }).then(function (reg) {
+          console.log('SW registrovan:', reg.scope);
+        }).catch(function (err) {
+          console.warn('SW greška:', err);
         });
-        return Promise.all(promises);
-      }).then(function () {
-        // Zatim registruj novi
-        return navigator.serviceWorker.register('sw.js');
-      }).then(function (reg) {
-        console.log('Service Worker registrovan:', reg.scope);
-        // Forsiraj ažuriranje
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-      }).catch(function (err) {
-        console.warn('Service Worker greška:', err);
       });
-    });
-  }
-</script>
+    }
+  </script>
 </body>
 </html>
