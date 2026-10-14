@@ -82,10 +82,25 @@
   function initItems() { if (global.items && global.items.init) global.items.init(); }
   function initMoney() { if (global.money && global.money.init) global.money.init(); }
 
+  /**
+   * POPRAVLJENO: initBackButtons
+   * Sada se vezuje ISKLJUČIVO na elemente koji imaju klasu .back-btn
+   * ili atribut data-back, ali isključivo unutar modula (ne na globalne kartice).
+   */
   function initBackButtons() {
     document.addEventListener('click', function (e) {
-      const btn = e.target.closest('[data-back]');
+      // Tražimo najbliži element sa klasom .back-btn ili atributom data-back
+      const btn = e.target.closest('.back-btn, [data-back]');
+      
+      // Ako nema takvog elementa, prekidamo
       if (!btn) return;
+
+      // Dodatna sigurnosna provera: ako je kliknut element unutar glavnog menija (home cards/widgets),
+      // ignorišemo ga da ne bi došlo do slučajnog zatvaranja.
+      if (btn.closest('#homeCards') || btn.closest('#homeWidgets')) {
+        return;
+      }
+
       e.preventDefault();
       if (global.router && global.router.navigate) {
         global.router.navigate('home');
