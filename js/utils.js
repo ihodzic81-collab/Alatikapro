@@ -135,10 +135,6 @@
 
   /* ---------- PAMETAN DATE INPUT (isključivo tekstualni) ---------- */
 
-  /**
-   * Vraća HTML za pametan date input (samo tekstualni, bez native date).
-   * Format zavisi od getDateFormat(): DMY ili MDY.
-   */
   function dateInputHTML(name, value, opts) {
     opts = opts || {};
     const fmt = getDateFormat();
@@ -168,12 +164,6 @@
     ].join('');
   }
 
-  /**
-   * Povezuje sve pametne date inpute.
-   * - Formatira unos dok korisnik kuca
-   * - Validira datum
-   * - Ikonica kalendara otvara mali kalendar (custom)
-   */
   function bindDateInputs(root) {
     root = root || document;
     const wraps = root.querySelectorAll('[data-smart-date]');
@@ -188,7 +178,6 @@
 
       if (!input) return;
 
-      /* Formatiraj unos dok korisnik kuca */
       input.addEventListener('input', function () {
         const raw = input.value.replace(/[^\d]/g, '').slice(0, 8);
         let out = '';
@@ -207,7 +196,6 @@
         input.classList.remove('input-error');
       });
 
-      /* Na blur — validiraj i normalizuj */
       input.addEventListener('blur', function () {
         const iso = parseDisplayToISO(input.value, fmt);
         if (!iso) {
@@ -222,18 +210,14 @@
         input.value = formatDate(iso);
       });
 
-      /* Klik na ikonicu — otvori mali custom kalendar */
       if (iconBtn) {
         iconBtn.addEventListener('click', function () {
-          openMiniCalendar(wrap, input, fmt);
+          openMiniCalendar(wrap, input, fmt, iconBtn);
         });
       }
     });
   }
 
-  /**
-   * Parsira prikaz u ISO (YYYY-MM-DD).
-   */
   function parseDisplayToISO(display, fmt) {
     if (!display) return '';
     const parts = String(display).split('/');
@@ -264,11 +248,7 @@
     return toISODate(d);
   }
 
-  /**
-   * Otvara mali kalendar ispod inputa.
-   */
-  function openMiniCalendar(wrap, input, fmt) {
-    /* Ukloni postojeći */
+  function openMiniCalendar(wrap, input, fmt, iconBtn) {
     const existing = wrap.querySelector('.mini-calendar');
     if (existing) existing.parentNode.removeChild(existing);
 
@@ -283,7 +263,7 @@
     function render() {
       const firstDay = new Date(viewYear, viewMonth, 1);
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-      const startWeekday = (firstDay.getDay() + 6) % 7; /* Ponedeljak = 0 */
+      const startWeekday = (firstDay.getDay() + 6) % 7;
 
       const lang = (global.i18n && global.i18n.getLang) ? global.i18n.getLang() : 'sr';
       const monthNames = lang === 'en'
@@ -343,7 +323,7 @@
           const iso = btn.getAttribute('data-mc-day');
           input.value = formatDate(iso);
           input.classList.remove('input-error');
-          cal.parentNode.removeChild(cal);
+          if (cal.parentNode) cal.parentNode.removeChild(cal);
         });
       });
     }
@@ -351,14 +331,14 @@
     render();
     wrap.appendChild(cal);
 
-    /* Zatvori na klik van */
     setTimeout(function () {
-      document.addEventListener('click', function closeCal(e) {
+      function closeCal(e) {
         if (!cal.contains(e.target) && e.target !== input && e.target !== iconBtn) {
           if (cal.parentNode) cal.parentNode.removeChild(cal);
           document.removeEventListener('click', closeCal);
         }
-      });
+      }
+      document.addEventListener('click', closeCal);
     }, 10);
   }
 
@@ -366,9 +346,8 @@
     if (!root) return '';
     const input = root.querySelector('input[type="text"][name="' + name + '"]');
     if (input && input.value) {
-      const fmt = (input.closest('[data-smart-date]') || {}).getAttribute
-        ? input.closest('[data-smart-date]').getAttribute('data-format')
-        : getDateFormat();
+      const wrap = input.closest('[data-smart-date]');
+      const fmt = wrap ? wrap.getAttribute('data-format') : getDateFormat();
       return parseDisplayToISO(input.value, fmt);
     }
     return '';
