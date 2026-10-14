@@ -914,7 +914,7 @@
     }, 200);
   }
 
-  function submitForm(overlay, baseItem) {
+    function submitForm(overlay, baseItem) {
     const form = overlay.querySelector('#remForm');
     const errEl = overlay.querySelector('#remFormError');
     errEl.textContent = '';
@@ -922,17 +922,21 @@
     const isBday = baseItem.isBirthday === true;
     const billId = form.billId ? form.billId.value : '';
 
+    /* PROVERA: datum iz pametnog inputa (utils.dateInputHTML) */
+    const dateISO = global.utils.getDateValue(overlay, 'date');
+    const birthDateISO = global.utils.getDateValue(overlay, 'birthDate');
+
     const data = {
       title: form.title.value.trim(),
       category: form.category.value,
-      date: form.date.value,
+      date: dateISO,
       time: form.time.value,
       priority: form.priority.value,
       repeat: isBday ? 'yearly' : form.repeat.value,
       notifyDaysBefore: Number(form.notifyDaysBefore.value) || 0,
       description: form.description.value.trim(),
       isBirthday: isBday,
-      birthDate: isBday ? (form.birthDate.value || '') : '',
+      birthDate: isBday ? birthDateISO : '',
       billId: billId
     };
 
