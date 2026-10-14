@@ -1,8 +1,8 @@
 /* Alatika Pro — Service Worker
-   Verzija: 1.0.2
+   Verzija: 1.0.3
    Svrha: offline shell, keširanje statičkih resursa. */
 
-const CACHE_NAME = 'alatikapro-v1.0.2';
+const CACHE_NAME = 'alatikapro-v1.0.3';
 
 const CORE_ASSETS = [
   './',
