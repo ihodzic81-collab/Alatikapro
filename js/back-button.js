@@ -1,33 +1,37 @@
 /* =========================================================
    ALATIKA PRO — back-button.js
    Android back dugme: mrvice + pitanje za izlaz.
+   Verzija: 2.0 — ručno brojanje koraka, ne oslanja se na e.state.
    ========================================================= */
 
 (function (global) {
   'use strict';
 
-  const historyStack = [];
+  /* Naš interni brojač koraka:
+     0 = home
+     1 = modul (reminders, bills, items, money)
+     2 = modal otvoren (bilo koji)
+  */
+  let step = 0;
   let isExitPromptOpen = false;
+  let lastModalState = false;
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
   }
 
-  function pushHistory(entry) {
+  function pushGuard() {
     try {
-      history.pushState({ app: 'alatikapro', ...entry, ts: Date.now() }, '');
-      historyStack.push(entry);
+      history.pushState({ app: 'alatikapro', guard: true, step: step, ts: Date.now() }, '');
     } catch (e) {}
   }
 
   function hasOpenModal() {
-    return document.querySelector('.modal-overlay.show') ||
-           document.querySelector('.pin-overlay.show') ||
-           document.querySelector('.help-modal-overlay.show');
+    return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
   }
 
   function closeOpenModal() {
-    const modal = hasOpenModal();
+    const modal = document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
     if (!modal) return false;
 
     const closeBtn = modal.querySelector(
@@ -97,54 +101,107 @@
     });
   }
 
-  function onPopState(e) {
-    /* 1. Ako ima otvoren modal — zatvori ga i dodaj novi guard */
-    if (hasOpenModal()) {
-      closeOpenModal();
-      pushHistory({ screen: 'modal-closed' });
-      return;
-    }
+  /**
+   * Ažurira interni step na osnovu trenutnog stanja UI-ja.
+   * Poziva se pre svake odluke u onPopState.
+   */
+  function updateStepFromUI() {
+    const modalOpen = hasOpenModal();
+    const onHome = isOnHome();
 
-    /* 2. Ako nismo na Početnoj — idi na Početnu */
-    if (!isOnHome()) {
-      goHome();
-      pushHistory({ screen: 'home-guard' });
-      return;
-    }
-
-    /* 3. Na Početnoj — pitaj "Izaći?" SAMO ako je stvarno pritisnut back */
-    const prev = e.state;
-    if (prev && (prev.screen === 'home' || prev.screen === 'home-guard')) {
-      confirmExit().then(function (shouldExit) {
-        if (shouldExit) {
-          try { window.close(); } catch (err) {}
-          setTimeout(function () {
-            try { history.back(); } catch (err) {}
-          }, 100);
-        } else {
-          pushHistory({ screen: 'home-guard' });
-        }
-      });
+    if (modalOpen) {
+      step = 2;
+    } else if (!onHome) {
+      step = 1;
     } else {
-      /* Lažni pop (npr. od klika) — samo vrati guard */
-      pushHistory({ screen: 'home-guard' });
+      step = 0;
     }
   }
 
+  function onPopState(e) {
+    /* Ako je otvoren exit prompt — ignoriši */
+    if (isExitPromptOpen) {
+      pushGuard();
+      return;
+    }
+
+    /* Ažuriraj step na osnovu trenutnog UI stanja */
+    updateStepFromUI();
+
+    /* 1. Ako je modal otvoren (step 2) — zatvori ga, ostani u modulu */
+    if (step === 2) {
+      closeOpenModal();
+      /* Sada je step 1 (modul) */
+      step = 1;
+      pushGuard();
+      return;
+    }
+
+    /* 2. Ako smo u modulu (step 1) — idi na home */
+    if (step === 1) {
+      goHome();
+      step = 0;
+      pushGuard();
+      return;
+    }
+
+    /* 3. Na home (step 0) — pitaj za izlaz */
+    confirmExit().then(function (shouldExit) {
+      if (shouldExit) {
+        try { window.close(); } catch (err) {}
+        setTimeout(function () {
+          try { history.back(); } catch (err) {}
+        }, 100);
+      } else {
+        pushGuard();
+      }
+    });
+  }
+
+  /**
+   * Javna funkcija — poziva se kada god se promeni UI stanje (ušli u modul,
+   * otvorili modal, zatvorili modal) da bismo ažurirali step i dodali guard.
+   */
+  function notifyUIChanged() {
+    updateStepFromUI();
+    pushGuard();
+  }
+
   function init() {
+    /* Prvi history entry */
     try {
-      history.replaceState({ app: 'alatikapro', screen: 'home' }, '');
+      history.replaceState({ app: 'alatikapro', screen: 'home', step: 0 }, '');
     } catch (e) {}
 
-    pushHistory({ screen: 'home' });
+    pushGuard();
 
     window.addEventListener('popstate', onPopState);
+
+    /* Prati promene ruta */
+    if (global.router && global.router.onRouteChange) {
+      global.router.onRouteChange(function (route) {
+        updateStepFromUI();
+        pushGuard();
+      });
+    }
+
+    /* Prati otvaranje/zatvaranje modala preko MutationObserver */
+    const observer = new MutationObserver(function () {
+      const modalOpen = hasOpenModal();
+      if (modalOpen !== lastModalState) {
+        lastModalState = modalOpen;
+        updateStepFromUI();
+        pushGuard();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   }
 
   global.backButton = {
     init: init,
-    pushHistory: pushHistory,
+    pushHistory: pushGuard,
     hasOpenModal: hasOpenModal,
-    closeOpenModal: closeOpenModal
+    closeOpenModal: closeOpenModal,
+    notifyUIChanged: notifyUIChanged
   };
 })(window);
