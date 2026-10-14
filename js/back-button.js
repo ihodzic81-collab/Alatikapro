@@ -7,7 +7,7 @@
   'use strict';
 
   const historyStack = [];
-  let modalCheckInterval = null;
+  let isExitPromptOpen = false;
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
@@ -20,10 +20,6 @@
     } catch (e) {}
   }
 
-  function popHistory() {
-    if (historyStack.length > 0) historyStack.pop();
-  }
-
   function hasOpenModal() {
     return document.querySelector('.modal-overlay.show') ||
            document.querySelector('.pin-overlay.show') ||
@@ -34,7 +30,6 @@
     const modal = hasOpenModal();
     if (!modal) return false;
 
-    /* Pokušaj da nađeš dugme za zatvaranje */
     const closeBtn = modal.querySelector(
       '#detailClose, #rateDetailClose, #checkDetailClose, #itemDetailClose, ' +
       '#txDetailClose, #convClose, #helpCloseBtn, #remCancel, #billCancel, ' +
@@ -46,7 +41,6 @@
       try { closeBtn.click(); return true; } catch (e) {}
     }
 
-    /* Fallback: klikni na overlay pozadinu */
     try {
       modal.click();
       return true;
@@ -66,6 +60,9 @@
   }
 
   function confirmExit() {
+    if (isExitPromptOpen) return Promise.resolve(false);
+    isExitPromptOpen = true;
+
     return new Promise(function (resolve) {
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay show';
@@ -84,22 +81,23 @@
       document.body.appendChild(overlay);
       requestAnimationFrame(function () { overlay.classList.add('show'); });
 
+      function cleanup() {
+        if (overlay.parentNode) document.body.removeChild(overlay);
+        isExitPromptOpen = false;
+      }
+
       overlay.querySelector('#exitNo').addEventListener('click', function () {
-        document.body.removeChild(overlay);
-        /* Ostani u aplikaciji — push history entry */
-        pushHistory({ screen: 'home-guard' });
+        cleanup();
         resolve(false);
       });
       overlay.querySelector('#exitYes').addEventListener('click', function () {
-        document.body.removeChild(overlay);
+        cleanup();
         resolve(true);
       });
     });
   }
 
   function onPopState(e) {
-    const state = e.state;
-
     /* 1. Ako ima otvoren modal — zatvori ga */
     if (hasOpenModal()) {
       closeOpenModal();
@@ -114,28 +112,26 @@
       return;
     }
 
-    /* 3. Na Početnoj — pitaj "Izaći?" */
-    confirmExit().then(function (shouldExit) {
-      if (shouldExit) {
-        /* Pokušaj da zatvoriš aplikaciju */
-        try { window.close(); } catch (err) {}
-        /* Ako ne može — vrati se nazad */
-        setTimeout(function () {
-          try { history.back(); } catch (err) {}
-        }, 100);
-      }
-    });
-  }
-
-  function interceptAnchorClicks() {
-    /* Kada korisnik klikne na link koji vodi ka modulu/modal-u,
-       dodaj history entry */
-    document.addEventListener('click', function (e) {
-      const target = e.target.closest('[data-nav], .module-card, .nav-btn, [data-module], [data-route]');
-      if (target) {
-        pushHistory({ click: target.className, ts: Date.now() });
-      }
-    }, true);
+    /* 3. Na Početnoj — pitaj "Izaći?" SAMO ako je stvarno pritisnut back */
+    /* Provera: ako je prethodni state bio 'home-guard' ili 'home', 
+       znači da je korisnik već na home i pritisnuo je back. */
+    const prev = e.state;
+    if (prev && (prev.screen === 'home' || prev.screen === 'home-guard')) {
+      confirmExit().then(function (shouldExit) {
+        if (shouldExit) {
+          try { window.close(); } catch (err) {}
+          setTimeout(function () {
+            try { history.back(); } catch (err) {}
+          }, 100);
+        } else {
+          /* Ostani u aplikaciji — vrati guard */
+          pushHistory({ screen: 'home-guard' });
+        }
+      });
+    } else {
+      /* Lažni pop (npr. od klika) — samo vrati guard */
+      pushHistory({ screen: 'home-guard' });
+    }
   }
 
   function init() {
@@ -148,7 +144,7 @@
     pushHistory({ screen: 'home' });
 
     window.addEventListener('popstate', onPopState);
-    interceptAnchorClicks();
+    /* UKLONJEN interceptAnchorClicks — on je pravio duple history entry-je */
   }
 
   global.backButton = {
