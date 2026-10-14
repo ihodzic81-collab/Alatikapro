@@ -142,22 +142,13 @@
     return base.replace('!', ', ' + vocative + '!');
   }
 
-  /**
-   * Srpski vokativ — pojednostavljeno.
-   * Irfan → Irfane, Selma → Selma, Alija → Alija, Marko → Marko
-   */
   function getVocative(name) {
     if (!name) return '';
     const n = name.trim();
-    /* Muška imena koja se završavaju na suglasnik → dodaj "e" */
     if (/[bcćdđfghjklmnprsštvzž]$/i.test(n)) {
-      /* Ako se završava na "k", "g", "h" → "e" (Marko → Marko — ne, Marko je izuzetak) */
-      /* Pojednostavljeno: dodaj "e" */
       if (/[aeiou]$/i.test(n)) return n;
       return n + 'e';
     }
-    /* Ženska imena na "a" → skini "a" (Selma → Selma, Marina → Marino, ali ipak ostavljamo) */
-    /* Pojednostavljeno: vrati ime kako jeste */
     return n;
   }
 
@@ -258,7 +249,6 @@
       '</div>'
     ].join('');
 
-    /* Event listeners */
     overlay.querySelector('#profileClose').addEventListener('click', closeModal);
 
     overlay.querySelectorAll('[data-profile-id]').forEach(function (row) {
@@ -319,7 +309,7 @@
       '  <h3 class="modal-title">' + (isEdit ? t('profile.edit', 'Izmeni profil') : t('profile.new', 'Novi profil')) + '</h3>',
       '  <div class="form-group">',
       '    <label class="label">' + t('profile.field.name', 'Ime') + ' *</label>',
-      '    <input class="input" type="text" id="profileNameInput" maxlength="20" value="' + global.utils.escapeHtml(profile.name) + '" placeholder="' + t('profile.field.namePlaceholder', 'npr. Irfan') + '" />',
+      '    <input class="input" type="text" id="profileNameInput" maxlength="20" value="' + global.utils.escapeHtml(profile.name) + '" />',
       '  </div>',
       '  <div class="form-group">',
       '    <label class="label">' + t('profile.field.color', 'Boja') + '</label>',
