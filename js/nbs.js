@@ -1,7 +1,6 @@
 /* =========================================================
    ALATIKA PRO — nbs.js
-   Kursna lista — koristi CORS-friendly API (open.er-api.com).
-   Uvek radi, čak i bez proxy-ja.
+   Kursna lista — CORS-friendly API + ispravan EUR rate.
    ========================================================= */
 
 (function (global) {
@@ -9,13 +8,13 @@
 
   const LS_RATES = 'nbs.rates';
   const LS_UPDATED = 'nbs.updatedAt';
-  const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; /* 6h */
+  const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
   const FETCH_TIMEOUT_MS = 10000;
 
   /* Fiksni srednji kurs EUR/RSD */
   const EUR_RSD = 117.20;
 
-  /* Hardkodovane vrednosti (EUR baza) — fallback ako svi API-ji padnu */
+  /* Hardkodovane vrednosti (EUR baza) */
   const HARDCODED = {
     EUR: 1, USD: 1.08, GBP: 0.85, CHF: 0.95, CAD: 1.47,
     AUD: 1.65, JPY: 168.50, CNY: 7.85, RUB: 100.00, BAM: 1.9558,
@@ -25,7 +24,7 @@
     INR: 90.50, BRL: 5.45, ZAR: 20.30, MXN: 18.50
   };
 
-  /* CORS-friendly API-ji (rade bez proxy-ja sa GitHub Pages) */
+  /* CORS-friendly API-ji */
   const API_URLS = [
     {
       url: 'https://open.er-api.com/v6/latest/EUR',
@@ -89,16 +88,23 @@
     return code;
   }
 
+  /**
+   * Pravi rates objekat iz API podataka (baza EUR).
+   * API daje: 1 EUR = X CODE. Nama treba: 1 CODE = Y RSD.
+   * Y = EUR_RSD / X
+   */
   function buildRatesObject(rawRates) {
     const rates = {};
-    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: 1, unit: 1 };
+    /* EUR: 1 EUR = 117.20 RSD */
+    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: EUR_RSD, unit: 1 };
+    /* RSD: 1 RSD = 1 RSD */
     rates.RSD = { code: 'RSD', name: getName('RSD'), middle: 1, unit: 1 };
 
     Object.keys(rawRates).forEach(function (code) {
       if (code === 'EUR' || code === 'RSD') return;
       const x = Number(rawRates[code]);
       if (!isFinite(x) || x <= 0) return;
-      /* API daje: 1 EUR = X CODE. Nama treba: 1 CODE = Y RSD */
+      /* 1 CODE = (EUR_RSD / X) RSD */
       const middle = EUR_RSD / x;
       rates[code] = { code: code, name: getName(code), middle: middle, unit: 1 };
     });
@@ -106,9 +112,12 @@
     return rates;
   }
 
+  /**
+   * Hardkodovani fallback — iste formule kao iznad.
+   */
   function buildHardcodedRates() {
     const rates = {};
-    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: 1, unit: 1 };
+    rates.EUR = { code: 'EUR', name: getName('EUR'), middle: EUR_RSD, unit: 1 };
     rates.RSD = { code: 'RSD', name: getName('RSD'), middle: 1, unit: 1 };
     Object.keys(HARDCODED).forEach(function (code) {
       if (code === 'EUR') return;
@@ -125,6 +134,7 @@
       const updatedRaw = localStorage.getItem('alatikapro.' + LS_UPDATED);
       if (!ratesRaw) return null;
       const parsed = JSON.parse(ratesRaw);
+      if (!parsed || !parsed.EUR) return null;
       return {
         rates: parsed,
         date: parsed.__date || null,
@@ -168,8 +178,11 @@
     return next();
   }
 
+  /**
+   * Glavna funkcija — uvek vraća kurseve.
+   */
   function getRates(forceRefresh) {
-    /* Ako imamo sveže u memoriji */
+    /* Ako imamo sveže u memoriji i nije force refresh */
     if (state.rates && state.updatedAt && !forceRefresh) {
       const age = Date.now() - state.updatedAt;
       if (age < REFRESH_INTERVAL_MS && state.source === 'api') {
@@ -180,6 +193,7 @@
       }
     }
 
+    /* Keš iz localStorage */
     const cached = loadFromCache();
     if (cached && cached.updatedAt && !forceRefresh && state.source !== 'base') {
       const age = Date.now() - cached.updatedAt;
@@ -195,6 +209,7 @@
       }
     }
 
+    /* Povuci sa API-ja */
     return tryApis().then(function (result) {
       state.rates = result.rates;
       state.date = result.date;
@@ -206,6 +221,7 @@
         fromCache: false, source: 'api'
       };
     }).catch(function (err) {
+      /* Ako ima keš — koristi ga */
       if (cached) {
         state.rates = cached.rates;
         state.date = cached.date;
@@ -216,6 +232,7 @@
           fromCache: true, source: 'cache', error: err.message
         };
       }
+      /* Poslednja linija — hardkodovano */
       const fallback = buildHardcodedRates();
       state.rates = fallback;
       state.date = new Date().toISOString().slice(0, 10);
