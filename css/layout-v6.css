@@ -77,8 +77,8 @@ html, body { height: 100%; }
   display: flex;
   align-items: center;
   gap: 0.15rem;
-  flex: 0 0 auto;
-  margin-left: auto;
+  flex: 1 1 auto;
+  justify-content: flex-end;
   padding-left: 0.5rem;
 }
 
