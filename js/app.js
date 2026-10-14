@@ -1,6 +1,7 @@
 /* =========================================================
    ALATIKA PRO — app.js
    Glavna tačka pokretanja aplikacije.
+   + Android back dugme zatvara modale.
    ========================================================= */
 
 (function (global) {
@@ -82,6 +83,67 @@
     });
   }
 
+  /**
+   * ANDROID BACK DUGME — zatvara modale umesto izlaska iz aplikacije.
+   *
+   * Logika:
+   * - Kada korisnik otvori bilo koji modal, dodajemo history entry (pushState)
+   * - Kada pritisne Android back, browser emituje 'popstate'
+   * - Na 'popstate', tražimo otvoreni modal i zatvaramo ga
+   * - Ako nema modala, onda browser normalno radi back (izlazak)
+   */
+  function initAndroidBackButton() {
+    /* Pratimo da li je back već registrovan */
+    let backGuardActive = false;
+
+    /* Kada se otvori modal (bilo koji .modal-overlay.show), dodaj history entry */
+    const observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (node) {
+          if (node.nodeType !== 1) return;
+          /* Provera da li je modal */
+          if (node.classList && (node.classList.contains('modal-overlay') ||
+              node.classList.contains('pin-overlay') ||
+              node.classList.contains('help-modal-overlay'))) {
+            /* Dodaj history entry da back dugme ima šta da "pojede" */
+            try {
+              history.pushState({ modalOpen: true, ts: Date.now() }, '');
+              backGuardActive = true;
+            } catch (e) {}
+          }
+        });
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: false });
+
+    /* Na popstate — zatvori modal ako postoji */
+    window.addEventListener('popstate', function (e) {
+      /* Pronađi otvoreni modal */
+      const openModal = document.querySelector('.modal-overlay.show') ||
+                        document.querySelector('.pin-overlay.show') ||
+                        document.querySelector('.help-modal-overlay.show');
+
+      if (openModal) {
+        /* Zatvori modal na klik na overlay pozadinu (to rade svi modali) */
+        const clickEvent = new MouseEvent('click', { bubbles: true });
+        openModal.dispatchEvent(clickEvent);
+        /* Ako modal ima posebno dugme za zatvaranje, klikni ga */
+        const closeBtn = openModal.querySelector('#detailClose, #rateDetailClose, #checkDetailClose, #itemDetailClose, #txDetailClose, #convClose, #helpCloseBtn, #remCancel, #billCancel, #rateCancel, #checkCancel, #itemCancel, #moneyCancel, #budgetCancel, #pinCancel');
+        if (closeBtn) {
+          try { closeBtn.click(); } catch (e) {}
+        }
+        /* Dodaj novi history entry da ostane u aplikaciji */
+        try {
+          history.pushState({ appGuard: true, ts: Date.now() }, '');
+        } catch (e) {}
+        return;
+      }
+
+      /* Ako nema modala, ništa ne radimo — browser izlazi ili ide nazad */
+    });
+  }
+
   function startChecksAutoRealize() {
     if (!global.bills || !global.bills.autoRealizeChecks) return;
     global.bills.autoRealizeChecks().then(function (changed) {
@@ -117,10 +179,6 @@
     );
   }
 
-  /**
-   * Globalni listener: kada modul Novac dobije novu transakciju,
-   * osveži Početnu stranu.
-   */
   function bindMoneyEvents() {
     global.addEventListener('alatikapro:moneychange', function () {
       if (global.home && global.home.refresh) global.home.refresh();
@@ -139,6 +197,7 @@
       initBills();
       initItems();
       initMoney();
+      initAndroidBackButton();
       applyInitialState();
       startChecksAutoRealize();
       startRatesRefresh();
