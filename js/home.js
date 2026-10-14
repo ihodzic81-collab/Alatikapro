@@ -1,7 +1,6 @@
 /* =========================================================
    ALATIKA PRO — home.js
-   Početna sa vidžetima + mini konverter + refresh.
-   Futer brze akcije.
+   Početna sa vidžetima + PIN zaštita po kartici.
    ========================================================= */
 
 (function (global) {
@@ -12,21 +11,27 @@
   }
   function tr(key, fallback) { return t(key, fallback); }
 
-  /* ---------- POZDRAV ---------- */
+  /* ---------- POZDRAV SA IMENOM ---------- */
 
   function renderGreeting() {
     const helloEl = document.getElementById('homeHello');
     const dateEl = document.getElementById('homeDate');
     if (!helloEl || !dateEl) return;
 
-    const hour = new Date().getHours();
-    let key = 'home.greet.day';
-    if (hour < 5) key = 'home.greet.night';
-    else if (hour < 11) key = 'home.greet.morning';
-    else if (hour < 18) key = 'home.greet.day';
-    else key = 'home.greet.evening';
-
-    helloEl.textContent = tr(key, 'Zdravo!');
+    /* Pozdrav sa imenom ako ima aktivnog profila */
+    let greeting;
+    if (global.profile && global.profile.getGreeting) {
+      greeting = global.profile.getGreeting();
+    } else {
+      const hour = new Date().getHours();
+      let key = 'home.greet.day';
+      if (hour < 5) key = 'home.greet.night';
+      else if (hour < 11) key = 'home.greet.morning';
+      else if (hour < 18) key = 'home.greet.day';
+      else key = 'home.greet.evening';
+      greeting = tr(key, 'Zdravo!');
+    }
+    helloEl.textContent = greeting;
 
     const lang = (global.i18n && global.i18n.getLang) ? global.i18n.getLang() : 'sr';
     const locale = lang === 'en' ? 'en-GB' : 'sr-RS';
@@ -55,7 +60,7 @@
   ];
 
   const LOCK_SVG =
-    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
 
   function renderModuleCards() {
     const wrap = document.getElementById('homeCards');
@@ -73,7 +78,7 @@
       btn.innerHTML = [
         '<span class="mc-icon ' + mod.iconColor + '" aria-hidden="true">' + mod.icon + '</span>',
         '<span class="mc-title">' + tr(mod.titleKey, mod.titleFallback) + '</span>',
-        locked ? '<span class="mc-lock" aria-hidden="true">' + LOCK_SVG + '</span>' : ''
+        locked ? '<span class="mc-lock mc-lock-active" aria-hidden="true">' + LOCK_SVG + '</span>' : ''
       ].join('');
 
       btn.addEventListener('click', function () { openModule(mod.key); });
@@ -92,10 +97,15 @@
       return;
     }
     if (global.pinUI && global.pinUI.promptUnlock) {
-      global.pinUI.promptUnlock(moduleKey, function () {
-        global.pin.markUnlocked(moduleKey);
-        global.router.navigate(route);
-      });
+      global.pinUI.promptUnlock(moduleKey,
+        function () {
+          /* Uspešno otključano */
+          global.router.navigate(route);
+        },
+        function () {
+          /* Otkazano — ostani na Početnoj */
+        }
+      );
     } else {
       global.router.navigate(route);
     }
@@ -113,10 +123,33 @@
     renderRatesWidget(wrap);
   }
 
+  /* Pomoćna: proveri da li je modul zaključan */
+  function isModuleLocked(moduleKey) {
+    return global.pin && global.pin.isModuleLocked(moduleKey);
+  }
+
+  /* Overlay za zaključane vidžete */
+  function attachLockOverlay(card, moduleKey, moduleLabel) {
+    card.classList.add('home-widget-locked');
+    const overlay = document.createElement('div');
+    overlay.className = 'hw-lock-overlay';
+    overlay.innerHTML = [
+      '<div class="hw-lock-icon">' + LOCK_SVG + '</div>',
+      '<div class="hw-lock-text">' + tr('pin.lockedShort', 'Zaključano') + '</div>'
+    ].join('');
+    overlay.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openModule(moduleKey);
+    });
+    card.appendChild(overlay);
+  }
+
   /* --- Današnje obaveze --- */
   function renderTodayWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
+
+    const locked = isModuleLocked('reminders');
 
     const reminders = (global.reminders && global.reminders._state && global.reminders._state.items) || [];
 
@@ -171,7 +204,7 @@
       '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>',
       '  </span>',
       '  <span class="hw-label">' + tr('home.widget.todayTitle', 'Današnje obaveze') + '</span>',
-      hasUrgent ? '<span class="hw-pulse"></span>' : '',
+      hasUrgent && !locked ? '<span class="hw-pulse"></span>' : '',
       '  <button type="button" class="hw-more" data-goto="reminders">→</button>',
       '</div>',
       '<div class="hw-scroll">' + chipsHTML + '</div>'
@@ -180,9 +213,11 @@
     card.querySelectorAll('[data-goto]').forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        global.router.navigate('reminders');
+        openModule('reminders');
       });
     });
+
+    if (locked) attachLockOverlay(card, 'reminders', 'Podsetnici');
 
     parent.appendChild(card);
   }
@@ -191,6 +226,8 @@
   function renderPendingBillsWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
+
+    const locked = isModuleLocked('bills');
 
     const bills = (global.bills && global.bills._state && global.bills._state.items) || [];
     const currentMonth = (function () {
@@ -241,7 +278,7 @@
       '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"></path><path d="M14 2v6h6"></path><path d="M9 13h6M9 17h6"></path></svg>',
       '  </span>',
       '  <span class="hw-label">' + tr('home.widget.billsTitle', 'Računi na čekanju') + '</span>',
-      hasOverdue ? '<span class="hw-pulse"></span>' : '',
+      hasOverdue && !locked ? '<span class="hw-pulse"></span>' : '',
       '  <button type="button" class="hw-more" data-goto="bills">→</button>',
       '</div>',
       '<div class="hw-scroll">' + chipsHTML + '</div>'
@@ -250,12 +287,13 @@
     card.querySelectorAll('[data-bill-id]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
+        if (locked) { openModule('bills'); return; }
         const billId = btn.getAttribute('data-bill-id');
         const bill = bills.find(function (b) { return b.id === billId; });
         if (bill && global.bills && global.bills.openBillDetail) {
           global.bills.openBillDetail(bill);
         } else {
-          global.router.navigate('bills');
+          openModule('bills');
         }
       });
     });
@@ -263,9 +301,11 @@
     card.querySelectorAll('[data-goto]').forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        global.router.navigate('bills');
+        openModule('bills');
       });
     });
+
+    if (locked) attachLockOverlay(card, 'bills', 'Računi');
 
     parent.appendChild(card);
   }
@@ -274,6 +314,8 @@
   function renderBudgetWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
+
+    const locked = isModuleLocked('money');
 
     const transactions = (global.money && global.money._state && global.money._state.items) || [];
     const budgets = (global.money && global.money._state && global.money._state.budgets) || [];
@@ -326,7 +368,7 @@
       '    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5a2.5 2.5 0 0 1 5 0c0 1.5-5 1.5-5 3a2.5 2.5 0 0 0 5 0"></path></svg>',
       '  </span>',
       '  <span class="hw-label">' + tr('home.widget.budgetTitle', 'Budžet ovog meseca') + '</span>',
-      isOver ? '<span class="hw-pulse"></span>' : '',
+      isOver && !locked ? '<span class="hw-pulse"></span>' : '',
       '  <button type="button" class="hw-more" data-goto="money">→</button>',
       '</div>',
       '<div class="hw-budget-body">' + contentHTML + '</div>'
@@ -335,17 +377,20 @@
     card.querySelectorAll('[data-goto]').forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation();
-        global.router.navigate('money');
+        openModule('money');
       });
     });
+
+    if (locked) attachLockOverlay(card, 'money', 'Novac');
 
     parent.appendChild(card);
   }
 
-  /* --- Kursna lista sa refresh dugmetom --- */
+  /* --- Kursna lista --- */
   function renderRatesWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
+    /* Kursna lista nije vezana za modul — ne zaključava se */
 
     card.innerHTML = [
       '<div class="hw-header">',
@@ -555,6 +600,28 @@
   /* ---------- BRZE AKCIJE ---------- */
 
   function handleQuickAction(key) {
+    const moduleKeyMap = {
+      'add-reminder': 'reminders',
+      'add-bill': 'bills',
+      'add-item': 'items',
+      'add-money': 'money'
+    };
+    const moduleKey = moduleKeyMap[key];
+    if (!moduleKey) return;
+
+    /* Ako je modul zaključan — prvo traži PIN */
+    if (isModuleLocked(moduleKey) && !global.pin.isUnlockedThisSession(moduleKey)) {
+      if (global.pinUI && global.pinUI.promptUnlock) {
+        global.pinUI.promptUnlock(moduleKey, function () {
+          performQuickAction(key);
+        });
+        return;
+      }
+    }
+    performQuickAction(key);
+  }
+
+  function performQuickAction(key) {
     if (key === 'add-reminder') {
       if (global.reminders && global.reminders.openForm) {
         global.reminders.openForm(null);
@@ -630,30 +697,85 @@
     });
   }
 
-  /* ---------- LOCK ---------- */
+  /* ---------- LOCK BUTTONS (u headerima modula) ---------- */
 
   function bindModuleLockButtons() {
     document.querySelectorAll('[data-module-lock]').forEach(function (btn) {
       if (btn.dataset.bound) return;
       btn.dataset.bound = '1';
-      btn.addEventListener('click', function () {
-        const moduleName = btn.getAttribute('data-module-lock');
-        if (!moduleName) return;
-        if (!global.pin || !global.pin.isPinSet()) {
-          showToast(tr('pin.setFirst', 'Prvo postavi PIN u Podešavanjima.'));
-          if (global.settings) global.settings.open();
-          return;
-        }
-        const locked = global.pin.isModuleLocked(moduleName);
-        if (global.pinUI && global.pinUI.promptUnlock) {
-          global.pinUI.promptUnlock(moduleName, function () {
-            global.pin.setModuleLocked(moduleName, !locked);
-            showToast(locked ? tr('pin.unlocked', 'Otključano.') : tr('pin.locked', 'Zaključano.'));
-            refreshAll();
-          });
-        }
+
+      const moduleName = btn.getAttribute('data-module-lock');
+      if (!moduleName) return;
+
+      /* Postavi početno stanje (ikonica + klasa) */
+      updateLockButton(btn, moduleName);
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleModuleLock(moduleName, btn);
       });
     });
+  }
+
+  function updateLockButton(btn, moduleName) {
+    const locked = global.pin.isModuleLocked(moduleName);
+    btn.classList.toggle('is-locked', locked);
+    btn.classList.toggle('is-unlocked', !locked);
+    btn.setAttribute('title',
+      locked
+        ? tr('pin.lockedTitle', 'Kartica je zaključana — klikni da otključaš')
+        : tr('pin.unlockedTitle', 'Kartica nije zaključana — klikni da zaključaš')
+    );
+
+    /* Zameni SVG ikonicu */
+    const openLockSvg =
+      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.5-2"></path></svg>';
+    const closedLockSvg =
+      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+    btn.innerHTML = locked ? closedLockSvg : openLockSvg;
+  }
+
+  function toggleModuleLock(moduleName, btn) {
+    const locked = global.pin.isModuleLocked(moduleName);
+
+    if (locked) {
+      /* Ako je zaključan — traži PIN za otključavanje */
+      if (global.pinUI && global.pinUI.promptUnlock) {
+        global.pinUI.promptUnlock(moduleName, function () {
+          showToast(tr('pin.unlockedShort', '✓ Kartica je otključana.'));
+          updateLockButton(btn, moduleName);
+          renderModuleCards();
+          renderWidgets();
+        });
+      } else {
+        global.pin.markUnlocked(moduleName);
+        showToast(tr('pin.unlockedShort', '✓ Kartica je otključana.'));
+        updateLockButton(btn, moduleName);
+        renderModuleCards();
+        renderWidgets();
+      }
+    } else {
+      /* Ako nije zaključan — traži da postavi PIN */
+      if (global.pinUI && global.pinUI.promptSetPin) {
+        global.pinUI.promptSetPin(moduleName, function () {
+          showToast(tr('pin.lockedShort', '🔒 Kartica je zaključana.'));
+          global.router.navigate('home');
+          updateLockButton(btn, moduleName);
+          renderModuleCards();
+          renderWidgets();
+        });
+      } else {
+        /* Fallback ako nema pinUI */
+        global.pin.setModulePin(moduleName, '0000').then(function () {
+          showToast(tr('pin.lockedShort', '🔒 Kartica je zaključana.'));
+          global.router.navigate('home');
+          updateLockButton(btn, moduleName);
+          renderModuleCards();
+          renderWidgets();
+        });
+      }
+    }
   }
 
   function refreshAll() {
@@ -662,13 +784,21 @@
     renderWidgets();
     bindModuleLockButtons();
     bindFooterActions();
+    if (global.profile && global.profile.updateHeaderAvatar) {
+      global.profile.updateHeaderAvatar();
+    }
   }
 
   function init() {
     refreshAll();
 
     global.addEventListener('alatikapro:langchange', refreshAll);
-    global.addEventListener('alatikapro:pinchange', renderModuleCards);
+    global.addEventListener('alatikapro:pinchange', function () {
+      renderModuleCards();
+      renderWidgets();
+      bindModuleLockButtons();
+    });
+    global.addEventListener('alatikapro:profilechange', refreshAll);
 
     if (global.router && global.router.onRouteChange) {
       global.router.onRouteChange(function (route) {
