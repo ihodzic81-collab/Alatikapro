@@ -28,8 +28,10 @@
     opts = opts || {};
     const fromCode = opts.fromCode || 'RSD';
     const toCode = opts.toCode || 'EUR';
-    const amount = opts.amount || 100;
+    const amount = opts.amount || '';
     const compact = !!opts.compact;
+
+    const amountAttr = amount ? ' value="' + amount + '"' : '';
 
     const fromOptions = global.currencies.getAll().map(function (c) {
       const selected = c.code === fromCode ? ' selected' : '';
@@ -44,7 +46,7 @@
     return [
       '<div class="converter' + (compact ? ' converter-compact' : '') + '" data-converter>',
       '  <div class="conv-row">',
-      '    <input type="text" inputmode="decimal" class="conv-amount" data-conv-amount value="' + amount + '" placeholder="0,00" />',
+      '    <input type="text" inputmode="decimal" class="conv-amount" data-conv-amount' + amountAttr + ' placeholder="0,00" />',
       '    <select class="conv-currency" data-conv-from>' + fromOptions + '</select>',
       '  </div>',
       '  <div class="conv-swap-row">',
@@ -213,7 +215,7 @@
       }
 
       resetBtn.addEventListener('click', function () {
-        amountInput.value = '100';
+        amountInput.value = '';
         fromSelect.value = 'RSD';
         toSelect.value = 'EUR';
         recalc();
@@ -245,7 +247,7 @@
       '      </svg>',
       '    </button>',
       '  </div>',
-      renderHTML({ amount: 100, fromCode: 'RSD', toCode: 'EUR' }),
+      renderHTML({ amount: '', fromCode: 'RSD', toCode: 'EUR' }),
       '  <div class="conv-modal-updated" id="convModalUpdated"></div>',
       '  <div class="modal-actions">',
       '    <button type="button" class="btn btn-secondary" id="convClose">' + t('common.close', 'Zatvori') + '</button>',
@@ -291,7 +293,6 @@
         global.home.showToast(t('rates.refreshing', 'Osvežavam kurs...'));
       }
       global.nbs.getRates(true).then(function () {
-        /* Resetuj bind flag da se ponovo pokrenu konverzije */
         overlay.querySelectorAll('[data-converter]').forEach(function (c) {
           delete c.dataset.bound;
         });
