@@ -1,11 +1,6 @@
 /* =========================================================
    ALATIKA PRO — items.js
-   Modul Moje stvari — arhiva ličnih, porodičnih i poslovnih dokumenata:
-   - 4 kategorije: Lična, Porodična, Poslovna, Ostalo
-   - Upload slika/PDF-a u IndexedDB
-   - Datumi izdavanja i isteka
-   - Oznake, omiljeni, pretraga, filteri
-   - Detalji sa pregledom fajla, preuzimanje
+   Modul Moje stvari.
    ========================================================= */
 
 (function (global) {
@@ -23,13 +18,11 @@
 
   const state = {
     items: [],
-    filter: 'all',        /* all | favorites | expiring | expired */
+    filter: 'all',
     search: '',
-    activeCategory: null, /* null = sve, ili 'personal' | 'family' | 'business' | 'other' */
+    activeCategory: null,
     editingId: null
   };
-
-  /* ---------- POMOĆNE ---------- */
 
   function t(key, fallback) {
     return (global.i18n && global.i18n.t) ? global.i18n.t(key, fallback) : (fallback || key);
@@ -56,8 +49,6 @@
     return c ? c.color : 'blue';
   }
 
-  /* ---------- IKONE ---------- */
-
   const ICONS = {
     user: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>',
     family: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
@@ -69,8 +60,6 @@
     download: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>'
   };
 
-  /* ---------- UPLOAD ---------- */
-
   function optimizeImage(file) {
     return new Promise(function (resolve, reject) {
       if (!file || !file.type || file.type.indexOf('image/') !== 0) {
@@ -81,30 +70,20 @@
       const img = new Image();
       img.onload = function () {
         URL.revokeObjectURL(url);
-
         const MAX = 1600;
         let w = img.naturalWidth;
         let h = img.naturalHeight;
-
         if (w > MAX || h > MAX) {
-          if (w >= h) {
-            h = Math.round(h * (MAX / w));
-            w = MAX;
-          } else {
-            w = Math.round(w * (MAX / h));
-            h = MAX;
-          }
+          if (w >= h) { h = Math.round(h * (MAX / w)); w = MAX; }
+          else { w = Math.round(w * (MAX / h)); h = MAX; }
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-
         canvas.toBlob(function (blob) {
-          if (blob) resolve(blob);
-          else resolve(file);
+          if (blob) resolve(blob); else resolve(file);
         }, 'image/jpeg', 0.85);
       };
       img.onerror = function () {
@@ -127,33 +106,19 @@
         blob: optimized,
         createdAt: now
       };
-      return global.storage.save(STORE_FILES, record).then(function () {
-        return id;
-      });
+      return global.storage.save(STORE_FILES, record).then(function () { return id; });
     });
   }
 
-  function loadFile(fileId) {
-    return global.storage.load(STORE_FILES, fileId);
-  }
-
-  function deleteFile(fileId) {
-    if (!fileId) return Promise.resolve();
-    return global.storage.delete(STORE_FILES, fileId);
-  }
+  function loadFile(fileId) { return global.storage.load(STORE_FILES, fileId); }
+  function deleteFile(fileId) { if (!fileId) return Promise.resolve(); return global.storage.delete(STORE_FILES, fileId); }
 
   function getFileURL(fileId) {
     return loadFile(fileId).then(function (rec) {
       if (!rec || !rec.blob) return null;
-      return {
-        url: URL.createObjectURL(rec.blob),
-        type: rec.type,
-        name: rec.name
-      };
+      return { url: URL.createObjectURL(rec.blob), type: rec.type, name: rec.name };
     });
   }
-
-  /* ---------- UČITAVANJE ---------- */
 
   function loadAll() {
     return global.storage.loadAll(STORE).then(function (list) {
@@ -163,8 +128,6 @@
       return state.items;
     });
   }
-
-  /* ---------- FILTRIRANJE ---------- */
 
   function applyFilter(list) {
     let out = list.slice();
@@ -202,12 +165,9 @@
     return out;
   }
 
-  /* ---------- STATISTIKA ---------- */
-
   function computeStats() {
     const total = state.items.length;
     const favorites = state.items.filter(function (it) { return it.favorite; }).length;
-
     let expiring = 0;
     let expired = 0;
     state.items.forEach(function (it) {
@@ -216,7 +176,6 @@
       if (days < 0) expired++;
       else if (days <= 30) expiring++;
     });
-
     return { total: total, favorites: favorites, expiring: expiring, expired: expired };
   }
 
@@ -224,10 +183,7 @@
     return state.items.filter(function (it) { return it.category === catId; }).length;
   }
 
-  /* ---------- RENDER ---------- */
-
   function renderInto(view) {
-    /* Header */
     let header = view.querySelector('.module-header');
     if (!header) {
       view.innerHTML = '';
@@ -235,23 +191,15 @@
       view.appendChild(header);
     }
 
-    /* Očisti sve posle headera */
-    while (header.nextSibling) {
-      view.removeChild(header.nextSibling);
-    }
+    while (header.nextSibling) view.removeChild(header.nextSibling);
 
-    /* Ako je izabrana kategorija — prikaži listu te kategorije */
-    if (state.activeCategory) {
-      renderCategoryDetail(view);
-    } else {
-      renderCategoriesGrid(view);
-    }
+    if (state.activeCategory) renderCategoryDetail(view);
+    else renderCategoriesGrid(view);
 
     toggleFabVisibility();
   }
 
   function renderCategoriesGrid(view) {
-    /* 4 kartice kategorija */
     const grid = document.createElement('div');
     grid.className = 'items-categories';
 
@@ -279,7 +227,6 @@
 
     view.appendChild(grid);
 
-    /* Nedavno dodati — poslednjih 5 */
     const recent = state.items.slice(0, 5);
     if (recent.length > 0) {
       const recentTitle = document.createElement('h3');
@@ -296,7 +243,6 @@
       view.appendChild(listWrap);
     }
 
-    /* Prazno stanje */
     if (state.items.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'items-empty';
@@ -309,7 +255,6 @@
   }
 
   function renderCategoryDetail(view) {
-    /* Nazad dugme + naziv kategorije */
     const backRow = document.createElement('button');
     backRow.type = 'button';
     backRow.className = 'items-category-back';
@@ -325,13 +270,11 @@
     });
     view.appendChild(backRow);
 
-    /* Naslov kategorije */
     const catTitle = document.createElement('h2');
     catTitle.className = 'items-category-title';
     catTitle.textContent = categoryLabel(state.activeCategory);
     view.appendChild(catTitle);
 
-    /* Pretraga */
     const search = document.createElement('div');
     search.className = 'bills-search';
     search.innerHTML = [
@@ -346,7 +289,6 @@
       if (listWrap) renderItemsList(listWrap, view);
     }, 180));
 
-    /* Filteri */
     const filters = document.createElement('div');
     filters.className = 'bills-filters';
     const defs = [
@@ -372,7 +314,6 @@
     });
     view.appendChild(filters);
 
-    /* Lista */
     const listWrap = document.createElement('div');
     listWrap.className = 'items-list';
     view.appendChild(listWrap);
@@ -381,7 +322,6 @@
 
   function renderItemsList(listWrap, view) {
     listWrap.innerHTML = '';
-
     const filtered = applyFilter(state.items);
 
     if (filtered.length === 0) {
@@ -406,7 +346,6 @@
     row.type = 'button';
     row.className = 'item-row';
 
-    /* Thumbnail */
     const thumb = document.createElement('div');
     thumb.className = 'item-thumb';
     if (it.attachmentId) {
@@ -427,7 +366,6 @@
     }
     row.appendChild(thumb);
 
-    /* Body */
     const body = document.createElement('div');
     body.className = 'item-body';
 
@@ -436,7 +374,6 @@
     nameRow.appendChild(document.createTextNode(it.name || t('items.untitled', '(Bez naziva)')));
     body.appendChild(nameRow);
 
-    /* Meta */
     const meta = document.createElement('div');
     meta.className = 'item-meta';
 
@@ -464,7 +401,6 @@
     body.appendChild(meta);
     row.appendChild(body);
 
-    /* Favorite star */
     const favBtn = document.createElement('button');
     favBtn.type = 'button';
     favBtn.className = 'item-fav-btn' + (it.favorite ? ' active' : '');
@@ -487,8 +423,6 @@
 
     return row;
   }
-
-  /* ---------- FORMA (modal) ---------- */
 
   let formOverlay = null;
   let currentAttachment = { id: null, isNew: false, removed: false };
@@ -525,6 +459,9 @@
       return '<option value="' + c.id + '"' + selected + '>' + global.utils.escapeHtml(t(c.nameKey, c.id)) + '</option>';
     }).join('');
 
+    /* Tags: prikaži kao string */
+    const tagsString = Array.isArray(item.tags) ? item.tags.join(', ') : (item.tags || '');
+
     formOverlay.innerHTML = [
       '<div class="modal-sheet">',
       '  <h3 class="modal-title">' + (isEdit ? t('items.edit', 'Izmeni dokument') : t('items.new', 'Novi dokument')) + '</h3>',
@@ -541,11 +478,11 @@
       '    <div class="form-row">',
       '      <div class="form-group">',
       '        <label class="label">' + t('items.field.issueDate', 'Datum izdavanja') + '</label>',
-      '        <input class="input" type="date" name="issueDate" value="' + global.utils.escapeHtml(item.issueDate || '') + '" />',
+      global.utils.dateInputHTML('issueDate', item.issueDate || '', {}),
       '      </div>',
       '      <div class="form-group">',
       '        <label class="label">' + t('items.field.expiryDate', 'Datum isteka') + '</label>',
-      '        <input class="input" type="date" name="expiryDate" value="' + global.utils.escapeHtml(item.expiryDate || '') + '" />',
+      global.utils.dateInputHTML('expiryDate', item.expiryDate || '', {}),
       '      </div>',
       '    </div>',
       '    <div class="form-group">',
@@ -554,7 +491,7 @@
       '    </div>',
       '    <div class="form-group">',
       '      <label class="label">' + t('items.field.tags', 'Oznake') + '</label>',
-      '      <input class="input" type="text" name="tags" value="' + global.utils.escapeHtml(item.tags || '') + '" placeholder="' + t('items.field.tagsHint', 'Odvoji zarezom') + '" />',
+      '      <input class="input" type="text" name="tags" value="' + global.utils.escapeHtml(tagsString) + '" placeholder="' + t('items.field.tagsHint', 'Odvoji zarezom') + '" />',
       '    </div>',
       '    <div class="form-group">',
       '      <label class="label">' + t('items.field.description', 'Opis') + '</label>',
@@ -575,6 +512,7 @@
     ].join('');
 
     document.body.appendChild(formOverlay);
+    global.utils.bindDateInputs(formOverlay);
 
     renderUploadArea(formOverlay.querySelector('#uploadArea'));
 
@@ -660,10 +598,7 @@
     document.body.appendChild(input);
     input.addEventListener('change', function () {
       const file = input.files && input.files[0];
-      if (!file) {
-        document.body.removeChild(input);
-        return;
-      }
+      if (!file) { document.body.removeChild(input); return; }
       saveFile(file).then(function (id) {
         currentAttachment.id = id;
         currentAttachment.isNew = true;
@@ -694,16 +629,19 @@
     const errEl = overlay.querySelector('#itemFormError');
     errEl.textContent = '';
 
-    /* Tags: pretvori u array */
     const tagsRaw = form.tags.value.trim();
     const tags = tagsRaw ? tagsRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+
+    /* ISPRAVNO čitanje datuma — preko utils.getDateValue */
+    const issueDateISO = global.utils.getDateValue(overlay, 'issueDate');
+    const expiryDateISO = global.utils.getDateValue(overlay, 'expiryDate');
 
     const data = {
       name: form.name.value.trim(),
       category: form.category.value,
       description: form.description.value.trim(),
-      issueDate: form.issueDate.value,
-      expiryDate: form.expiryDate.value,
+      issueDate: issueDateISO,
+      expiryDate: expiryDateISO,
       institution: form.institution.value.trim(),
       tags: tags,
       favorite: form.favorite.checked
@@ -752,8 +690,6 @@
     });
   }
 
-  /* ---------- DETALJI ---------- */
-
   function openDetail(it) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -795,7 +731,6 @@
 
     document.body.appendChild(overlay);
 
-    /* Attachment */
     if (it.attachmentId) {
       getFileURL(it.attachmentId).then(function (info) {
         if (!info) return;
@@ -811,7 +746,6 @@
           container.appendChild(img);
         }
 
-        /* Download dugme (i za slike i za PDF) */
         const link = document.createElement('a');
         link.href = info.url;
         link.download = info.name || 'document';
@@ -824,7 +758,6 @@
       });
     }
 
-    /* Favorite toggle u detaljima */
     overlay.querySelector('#itemDetailFav').addEventListener('click', function () {
       it.favorite = !it.favorite;
       global.storage.save(STORE, it).then(function () {
@@ -863,8 +796,6 @@
     });
   }
 
-  /* ---------- FAB ---------- */
-
   function buildFAB() {
     let fab = document.getElementById('itemsFab');
     if (!fab) {
@@ -887,9 +818,7 @@
     fab.style.display = route === 'items' ? '' : 'none';
   }
 
-  /* ---------- HEADER ---------- */
-
-   function buildHeader() {
+  function buildHeader() {
     const header = document.createElement('div');
     header.className = 'module-header';
     header.innerHTML = [
@@ -925,8 +854,6 @@
 
     return header;
   }
-
-  /* ---------- INIT ---------- */
 
   function init() {
     const view = document.getElementById('view-items');
@@ -979,12 +906,7 @@
   global.items = {
     init: init,
     loadAll: loadAll,
+    openForm: openForm,
     CATEGORIES: CATEGORIES.slice()
   };
 })(window);
-  global.items = {
-    init: init,
-    loadAll: loadAll,
-    openForm: openForm,   /* <-- DODAJ OVO */
-    CATEGORIES: CATEGORIES.slice()
-  };
