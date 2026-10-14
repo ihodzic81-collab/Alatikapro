@@ -1,15 +1,12 @@
 /* =========================================================
    ALATIKA PRO — pin.js
-   PIN zaštita: postavljanje, provera, zaključavanje kartica.
-   PIN se čuva kao SHA-256 hash (Web Crypto API), ne kao tekst.
+   PIN zaštita po kartici (različit PIN za svaku karticu).
    ========================================================= */
 
 (function (global) {
   'use strict';
 
-  const LS_PIN_HASH = 'pin.hash';
-  const LS_PIN_SALT = 'pin.salt';
-  const LS_LOCKED = 'pin.locked';
+  const LS_MODULE_PINS = 'pin.modules';
   const LS_FAILS = 'pin.fails';
   const LS_LOCK_UNTIL = 'pin.lockUntil';
   const LS_AUTO_LOCK = 'pin.autoLockMinutes';
@@ -51,7 +48,6 @@
       const data = enc.encode(text);
       return global.crypto.subtle.digest('SHA-256', data).then(bufToHex);
     }
-    /* Fallback: veoma slab, ali bolji nego ništa. */
     let h = 0;
     for (let i = 0; i < text.length; i++) {
       h = ((h << 5) - h) + text.charCodeAt(i);
@@ -64,100 +60,143 @@
     return sha256Hex(salt + ':' + pin + ':' + salt);
   }
 
-  /* ---------- STANJE ---------- */
+  /* ---------- STORAGE ---------- */
 
-  function isPinSet() {
-    return !!global.storage.lsGet(LS_PIN_HASH, null);
+  function getModulePins() {
+    return global.storage.lsGet(LS_MODULE_PINS, {}) || {};
+  }
+
+  function saveModulePins(obj) {
+    global.storage.lsSet(LS_MODULE_PINS, obj);
+  }
+
+  function getFails() {
+    return global.storage.lsGet(LS_FAILS, {}) || {};
+  }
+
+  function saveFails(obj) {
+    global.storage.lsSet(LS_FAILS, obj);
+  }
+
+  function getLockUntil() {
+    return global.storage.lsGet(LS_LOCK_UNTIL, {}) || {};
+  }
+
+  function saveLockUntil(obj) {
+    global.storage.lsSet(LS_LOCK_UNTIL, obj);
+  }
+
+  /* ---------- STATUS ---------- */
+
+  function isModuleLocked(moduleName) {
+    const pins = getModulePins();
+    return !!pins[moduleName];
+  }
+
+  function isAnyModuleLocked() {
+    const pins = getModulePins();
+    return Object.keys(pins).some(function (k) { return !!pins[k]; });
   }
 
   function getLockedModules() {
-    return global.storage.lsGet(LS_LOCKED, {}) || {};
-  }
-
-  function isModuleLocked(moduleName) {
-    if (!isPinSet()) return false;
-    const locked = getLockedModules();
-    return !!locked[moduleName];
-  }
-
-  function setModuleLocked(moduleName, locked) {
-    if (MODULES.indexOf(moduleName) === -1) return;
-    const current = getLockedModules();
-    current[moduleName] = !!locked;
-    global.storage.lsSet(LS_LOCKED, current);
-    try {
-      global.dispatchEvent(new CustomEvent('alatikapro:pinchange', {
-        detail: { module: moduleName, locked: !!locked }
-      }));
-    } catch (e) {
-      const ev = document.createEvent('Event');
-      ev.initEvent('alatikapro:pinchange', true, true);
-      ev.detail = { module: moduleName, locked: !!locked };
-      global.dispatchEvent(ev);
-    }
+    return getModulePins();
   }
 
   /* ---------- POSTAVLJANJE / PROMENA / UKLANJANJE ---------- */
 
-  function setPin(pin) {
+  function setModulePin(moduleName, pin) {
     if (!/^\d{4}$/.test(pin)) {
       return Promise.reject(new Error('PIN mora imati tačno 4 cifre.'));
     }
     const salt = randomSalt();
     return hashPin(pin, salt).then(function (hash) {
-      global.storage.lsSet(LS_PIN_SALT, salt);
-      global.storage.lsSet(LS_PIN_HASH, hash);
-      global.storage.lsSet(LS_FAILS, 0);
-      global.storage.lsRemove(LS_LOCK_UNTIL);
+      const pins = getModulePins();
+      pins[moduleName] = { hash: hash, salt: salt, setAt: Date.now() };
+      saveModulePins(pins);
+
+      /* Reset fails za taj modul */
+      const fails = getFails();
+      delete fails[moduleName];
+      saveFails(fails);
+
+      const until = getLockUntil();
+      delete until[moduleName];
+      saveLockUntil(until);
+
+      try {
+        global.dispatchEvent(new CustomEvent('alatikapro:pinchange', {
+          detail: { module: moduleName, locked: true }
+        }));
+      } catch (e) {}
       return true;
     });
   }
 
-  function verifyPin(pin) {
-    if (!/^\d{4}$/.test(pin)) {
-      return Promise.resolve(false);
-    }
-    const until = global.storage.lsGet(LS_LOCK_UNTIL, null);
-    if (until && Date.now() < until) {
-      return Promise.resolve(false);
-    }
-    const hash = global.storage.lsGet(LS_PIN_HASH, null);
-    const salt = global.storage.lsGet(LS_PIN_SALT, null);
-    if (!hash || !salt) return Promise.resolve(false);
+  function verifyModulePin(moduleName, pin) {
+    if (!/^\d{4}$/.test(pin)) return Promise.resolve(false);
 
-    return hashPin(pin, salt).then(function (candidate) {
-      if (candidate === hash) {
-        global.storage.lsSet(LS_FAILS, 0);
-        global.storage.lsRemove(LS_LOCK_UNTIL);
+    const untilMap = getLockUntil();
+    const until = untilMap[moduleName];
+    if (until && Date.now() < until) return Promise.resolve(false);
+
+    const pins = getModulePins();
+    const rec = pins[moduleName];
+    if (!rec) return Promise.resolve(false);
+
+    return hashPin(pin, rec.salt).then(function (candidate) {
+      if (candidate === rec.hash) {
+        const fails = getFails();
+        delete fails[moduleName];
+        saveFails(fails);
+        const until2 = getLockUntil();
+        delete until2[moduleName];
+        saveLockUntil(until2);
         return true;
       }
-      const fails = (global.storage.lsGet(LS_FAILS, 0) || 0) + 1;
-      global.storage.lsSet(LS_FAILS, fails);
-      if (fails >= MAX_FAILS) {
-        global.storage.lsSet(LS_LOCK_UNTIL, Date.now() + LOCKOUT_MINUTES * 60000);
+      const fails = getFails();
+      fails[moduleName] = (fails[moduleName] || 0) + 1;
+      saveFails(fails);
+      if (fails[moduleName] >= MAX_FAILS) {
+        const until2 = getLockUntil();
+        until2[moduleName] = Date.now() + LOCKOUT_MINUTES * 60000;
+        saveLockUntil(until2);
       }
       return false;
     });
   }
 
-  function changePin(oldPin, newPin) {
-    return verifyPin(oldPin).then(function (ok) {
-      if (!ok) throw new Error('Stari PIN nije ispravan.');
-      return setPin(newPin);
-    });
-  }
+  function removeModulePin(moduleName) {
+    const pins = getModulePins();
+    delete pins[moduleName];
+    saveModulePins(pins);
+    const fails = getFails();
+    delete fails[moduleName];
+    saveFails(fails);
+    const until = getLockUntil();
+    delete until[moduleName];
+    saveLockUntil(until);
 
-  function removePin() {
-    global.storage.lsRemove(LS_PIN_HASH);
-    global.storage.lsRemove(LS_PIN_SALT);
-    global.storage.lsRemove(LS_LOCKED);
-    global.storage.lsRemove(LS_FAILS);
-    global.storage.lsRemove(LS_LOCK_UNTIL);
+    /* Ukloni iz sesije */
+    delete sessionUnlocked[moduleName];
+
+    try {
+      global.dispatchEvent(new CustomEvent('alatikapro:pinchange', {
+        detail: { module: moduleName, locked: false }
+      }));
+    } catch (e) {}
     return true;
   }
 
-  function getRemainingLockSeconds() {
-    const until = global.storage.lsGet(LS_LOCK_UNTIL, null);
+  function removeAllPins() {
+    global.storage.lsRemove(LS_MODULE_PINS);
+    global.storage.lsRemove(LS_FAILS);
+    global.storage.lsRemove(LS_LOCK_UNTIL);
+    MODULES.forEach(function (m) { delete sessionUnlocked[m]; });
+  }
+
+  function getRemainingLockSeconds(moduleName) {
+    const untilMap = getLockUntil();
+    const until = untilMap[moduleName];
     if (!until) return 0;
     const left = until - Date.now();
     return left > 0 ? Math.ceil(left / 1000) : 0;
@@ -174,7 +213,7 @@
     global.storage.lsSet(LS_AUTO_LOCK, Number(min) || 0);
   }
 
-  /* ---------- SESIJA (koje je kartice korisnik otključao) ---------- */
+  /* ---------- SESIJA ---------- */
 
   const sessionUnlocked = {};
 
@@ -204,20 +243,16 @@
 
   global.pin = {
     MODULES: MODULES.slice(),
-    isPinSet: isPinSet,
-    setPin: setPin,
-    verifyPin: verifyPin,
-    changePin: changePin,
-    removePin: removePin,
-
     isModuleLocked: isModuleLocked,
-    setModuleLocked: setModuleLocked,
+    isAnyModuleLocked: isAnyModuleLocked,
     getLockedModules: getLockedModules,
-
+    setModulePin: setModulePin,
+    verifyModulePin: verifyModulePin,
+    removeModulePin: removeModulePin,
+    removeAllPins: removeAllPins,
     getRemainingLockSeconds: getRemainingLockSeconds,
     getAutoLockMinutes: getAutoLockMinutes,
     setAutoLockMinutes: setAutoLockMinutes,
-
     markUnlocked: markUnlocked,
     isUnlockedThisSession: isUnlockedThisSession,
     clearSession: clearSession,
