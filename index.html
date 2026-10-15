@@ -174,7 +174,7 @@
       'use strict';
 
       let lastGuardTime = 0;
-      const GUARD_COOLDOWN = 400;
+      const GUARD_COOLDOWN = 300;
 
       function hasOpenModal() {
         return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
@@ -209,6 +209,26 @@
         return route === 'home';
       }
 
+      function forceShowHome() {
+        if (window.router && window.router.current && window.router.current() === 'home') {
+          return;
+        }
+        const views = document.querySelectorAll('.view');
+        views.forEach(function (v) {
+          if (v.id === 'view-home') {
+            v.removeAttribute('hidden');
+          } else {
+            v.setAttribute('hidden', '');
+          }
+        });
+        try {
+          history.replaceState({ app: 'alatikapro', screen: 'home' }, '', '#home');
+        } catch (e) {}
+        if (window.router && window.router.onRouteChange) {
+          try { window.dispatchEvent(new Event('hashchange')); } catch (e) {}
+        }
+      }
+
       function onPopState() {
         if (hasOpenModal()) {
           closeOpenModal();
@@ -216,9 +236,7 @@
           return;
         }
         if (!isOnHome()) {
-          if (window.router && window.router.navigate) {
-            window.router.navigate('home');
-          }
+          forceShowHome();
           pushGuard();
           return;
         }
@@ -241,7 +259,7 @@
         });
       }
 
-      try { history.replaceState({ app: 'alatikapro', screen: 'home' }, ''); } catch (e) {}
+      try { history.replaceState({ app: 'alatikapro', screen: 'home' }, '', '#home'); } catch (e) {}
       pushGuard();
 
       window.addEventListener('popstate', onPopState);
