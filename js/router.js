@@ -1,7 +1,6 @@
 /* =========================================================
    ALATIKA PRO — router.js
-   Navigacija između glavnih ekrana. Koristi hash.
-   VERZIJA 3.0 — dodaje guard pri svakoj promeni rute.
+   VERZIJA 4.0 — bez pushGuard (to radi inline skripta)
    ========================================================= */
 
 (function (global) {
@@ -24,17 +23,6 @@
 
   function getRouteFromHash() {
     return normalize(global.location.hash);
-  }
-
-  let lastGuardTime = 0;
-
-  function pushGuard() {
-    const now = Date.now();
-    if (now - lastGuardTime < 200) return;
-    lastGuardTime = now;
-    try {
-      history.pushState({ app: 'alatikapro', guard: now }, '');
-    } catch (e) {}
   }
 
   function updateView(route) {
@@ -84,7 +72,6 @@
       } else {
         global.location.hash = targetHash;
       }
-      pushGuard();
     } else {
       updateView(r);
     }
@@ -94,7 +81,6 @@
     const r = getRouteFromHash();
     if (r !== currentRoute) {
       updateView(r);
-      pushGuard();
     }
   }
 
@@ -111,8 +97,6 @@
         if (r) navigate(r);
       });
     });
-
-    pushGuard();
   }
 
   function current() {
