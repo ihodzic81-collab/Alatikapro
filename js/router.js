@@ -1,8 +1,7 @@
 /* =========================================================
    ALATIKA PRO — router.js
-   Navigacija između glavnih ekrana (Home, Reminders, Bills,
-   Items, Money). Koristi hash (#home, #reminders, ...)
-   da bi radio i na GitHub Pages bez servera.
+   Navigacija između glavnih ekrana. Koristi hash.
+   VERZIJA 3.0 — dodaje guard pri svakoj promeni rute.
    ========================================================= */
 
 (function (global) {
@@ -25,6 +24,12 @@
 
   function getRouteFromHash() {
     return normalize(global.location.hash);
+  }
+
+  function pushGuard() {
+    try {
+      history.pushState({ app: 'alatikapro', guard: Date.now() }, '');
+    } catch (e) {}
   }
 
   function updateView(route) {
@@ -74,6 +79,8 @@
       } else {
         global.location.hash = targetHash;
       }
+      /* DODAJ GUARD — da back uvek ima kud da se vrati */
+      pushGuard();
     } else {
       updateView(r);
     }
@@ -83,6 +90,8 @@
     const r = getRouteFromHash();
     if (r !== currentRoute) {
       updateView(r);
+      /* DODAJ GUARD pri svakoj promeni rute */
+      pushGuard();
     }
   }
 
@@ -99,6 +108,9 @@
         if (r) navigate(r);
       });
     });
+
+    /* Početni guard */
+    pushGuard();
   }
 
   function current() {
