@@ -290,7 +290,6 @@
   z-index: 55;
 }
 .fab:active { transform: scale(0.94); }
-
 @media (min-width: 700px) {
   .fab { right: calc(50% - var(--max-width) / 2 + 1rem); }
 }
@@ -326,7 +325,9 @@
 .help-content { font-size: 0.9rem; line-height: 1.5; color: var(--color-text); }
 .help-content p { margin-bottom: 0.6rem; }
 
-/* MINI KALENDAR */
+/* =========================================================
+   MINI KALENDAR (poboljšan — dropdown za mesec/godinu)
+   ========================================================= */
 .mini-calendar {
   position: absolute;
   top: calc(100% + 4px);
@@ -337,28 +338,58 @@
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   padding: 0.6rem;
-  width: 260px;
+  width: 290px;
+  max-width: calc(100vw - 1.5rem);
   font-size: 0.85rem;
 }
+
 .mc-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 2px;
   margin-bottom: 0.5rem;
 }
+
 .mc-nav {
-  width: 28px;
+  width: 26px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--color-text);
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  flex: 0 0 auto;
+  background: transparent;
+  cursor: pointer;
 }
 .mc-nav:hover { background-color: var(--color-surface-2); }
-.mc-title { font-weight: 700; font-size: 0.85rem; color: var(--color-text); }
+
+.mc-select-month,
+.mc-select-year {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-subtle);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mc-select-month:focus,
+.mc-select-year:focus { border-color: var(--color-brand); }
+.mc-select-year {
+  flex: 0 0 auto;
+  min-width: 70px;
+}
+
 .mc-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -383,6 +414,8 @@
   font-size: 0.82rem;
   font-weight: 500;
   color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
 }
 .mc-day:hover { background-color: var(--color-surface-2); }
 .mc-day.today {
@@ -396,8 +429,8 @@
   font-weight: 700;
 }
 
-.smart-date { position: relative; }
+.smart-date { position: relative; min-width: 0; }
 
 @media (max-width: 360px) {
-  .mini-calendar { width: 240px; }
+  .mini-calendar { width: 260px; padding: 0.5rem; }
 }
