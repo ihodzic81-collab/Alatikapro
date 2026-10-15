@@ -10,6 +10,28 @@
   <meta http-equiv="Expires" content="0" />
   <title>Alatika Pro</title>
 
+  <style>
+    /* INLINE POPRAVKA HEADERA — ne kešira se */
+    .app-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      width: 100% !important;
+    }
+    .brand {
+      flex: 0 1 auto !important;
+      max-width: 55% !important;
+    }
+    .header-actions {
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.15rem !important;
+      flex: 1 1 auto !important;
+      justify-content: flex-end !important;
+      margin-left: auto !important;
+    }
+  </style>
+
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icons/web-app-manifest-192x192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -121,7 +143,6 @@
   <script src="js/pin.js"></script>
   <script src="js/pin-ui.js"></script>
   <script src="js/profile.js"></script>
-  <script src="js/back-button-v6.js"></script>
   <script src="js/help.js"></script>
   <script src="js/home.js"></script>
   <script src="js/settings.js"></script>
@@ -130,6 +151,83 @@
   <script src="js/items.js"></script>
   <script src="js/money.js"></script>
   <script src="js/app.js"></script>
+
+  <script>
+    /* =========================================================
+       INLINE BACK-BUTTON — ne kešira se
+       Back dugme NIKADA ne izbacuje iz aplikacije.
+       ========================================================= */
+    (function () {
+      'use strict';
+
+      function hasOpenModal() {
+        return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
+      }
+
+      function closeOpenModal() {
+        const modal = document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
+        if (!modal) return false;
+        const closeBtn = modal.querySelector(
+          '#detailClose, #rateDetailClose, #checkDetailClose, #itemDetailClose, ' +
+          '#txDetailClose, #convClose, #helpCloseBtn, #remCancel, #billCancel, ' +
+          '#rateCancel, #checkCancel, #itemCancel, #moneyCancel, #budgetCancel, ' +
+          '#pinCancel, #receiptCancel, #receiptDetailClose, #settingsClose, ' +
+          '#profileClose, #locationCancel, #editorCancel, #exitNo'
+        );
+        if (closeBtn) { try { closeBtn.click(); return true; } catch (e) {} }
+        try { modal.click(); return true; } catch (e) {}
+        return false;
+      }
+
+      function pushGuard() {
+        try {
+          history.pushState({ app: 'alatikapro', guard: Date.now() }, '');
+        } catch (e) {}
+      }
+
+      function isOnHome() {
+        const route = window.router && window.router.current ? window.router.current() : 'home';
+        return route === 'home';
+      }
+
+      function onPopState() {
+        if (hasOpenModal()) {
+          closeOpenModal();
+          pushGuard();
+          return;
+        }
+        if (!isOnHome()) {
+          if (window.router && window.router.navigate) {
+            window.router.navigate('home');
+          }
+          pushGuard();
+          return;
+        }
+        pushGuard();
+      }
+
+      let wasOpen = false;
+      const observer = new MutationObserver(function () {
+        const nowOpen = hasOpenModal();
+        if (nowOpen && !wasOpen) { wasOpen = true; pushGuard(); }
+        else if (!nowOpen && wasOpen) { wasOpen = false; }
+      });
+      observer.observe(document.body, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['class']
+      });
+
+      if (window.router && window.router.onRouteChange) {
+        window.router.onRouteChange(function (route) {
+          if (route !== 'home') pushGuard();
+        });
+      }
+
+      try { history.replaceState({ app: 'alatikapro', screen: 'home' }, ''); } catch (e) {}
+      pushGuard();
+
+      window.addEventListener('popstate', onPopState);
+    })();
+  </script>
 
   <script>
     if ('serviceWorker' in navigator) {
@@ -144,7 +242,7 @@
         }).then(function () {
           return navigator.serviceWorker.register('sw-v6.js');
         }).then(function (reg) {
-          console.log('SW v6 registrovan:', reg.scope);
+          console.log('SW registrovan:', reg.scope);
         }).catch(function (err) {
           console.warn('SW greška:', err);
         });
