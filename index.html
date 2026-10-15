@@ -11,24 +11,29 @@
   <title>Alatika Pro</title>
 
   <style>
-    /* INLINE POPRAVKA HEADERA — ne kešira se */
-    .app-header {
+    /* AGRESIVNA POPRAVKA HEADERA — ne kešira se */
+    header.app-header {
       display: flex !important;
       align-items: center !important;
       justify-content: space-between !important;
       width: 100% !important;
     }
-    .brand {
+    header.app-header > .brand {
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.75rem !important;
       flex: 0 1 auto !important;
       max-width: 55% !important;
+      min-width: 0 !important;
     }
-    .header-actions {
+    header.app-header > .header-actions {
       display: flex !important;
       align-items: center !important;
       gap: 0.15rem !important;
       flex: 1 1 auto !important;
       justify-content: flex-end !important;
       margin-left: auto !important;
+      padding-left: 0.5rem !important;
     }
   </style>
 
