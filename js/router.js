@@ -26,9 +26,14 @@
     return normalize(global.location.hash);
   }
 
+  let lastGuardTime = 0;
+
   function pushGuard() {
+    const now = Date.now();
+    if (now - lastGuardTime < 200) return;
+    lastGuardTime = now;
     try {
-      history.pushState({ app: 'alatikapro', guard: Date.now() }, '');
+      history.pushState({ app: 'alatikapro', guard: now }, '');
     } catch (e) {}
   }
 
@@ -79,7 +84,6 @@
       } else {
         global.location.hash = targetHash;
       }
-      /* DODAJ GUARD — da back uvek ima kud da se vrati */
       pushGuard();
     } else {
       updateView(r);
@@ -90,7 +94,6 @@
     const r = getRouteFromHash();
     if (r !== currentRoute) {
       updateView(r);
-      /* DODAJ GUARD pri svakoj promeni rute */
       pushGuard();
     }
   }
@@ -109,7 +112,6 @@
       });
     });
 
-    /* Početni guard */
     pushGuard();
   }
 
