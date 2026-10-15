@@ -9,7 +9,7 @@ const CORE_ASSETS = [
   './js/i18n.js', './js/storage.js', './js/state.js', './js/utils.js',
   './js/currencies.js', './js/nbs.js', './js/converter.js',
   './js/rates-widget.js', './js/router.js', './js/pin.js', './js/pin-ui.js',
-  './js/profile.js', './js/back-button-v6.js', './js/help.js', './js/home.js',
+  './js/profile.js', './js/help.js', './js/home.js',
   './js/settings.js', './js/reminders.js', './js/bills.js', './js/items.js',
   './js/money.js', './js/app.js',
   './icons/web-app-manifest-192x192.png', './icons/web-app-manifest-512x512.png'
