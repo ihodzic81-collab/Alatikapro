@@ -1,20 +1,13 @@
 /* =========================================================
    ALATIKA PRO — back-button-v6.js
-   Verzija: 7.0 — radi i u PWA i u browseru
+   Verzija: 8.0 — radi i u PWA i u browseru
+   Cilj: back dugme ne izbacuje iz aplikacije.
    ========================================================= */
 
 (function (global) {
   'use strict';
 
   let guardCount = 0;
-  let isPWA = false;
-
-  /* Detektuj da li smo u PWA režimu */
-  function detectPWA() {
-    isPWA = window.matchMedia('(display-mode: standalone)').matches ||
-            window.navigator.standalone === true ||
-            document.referrer.includes('android-app://');
-  }
 
   function hasOpenModal() {
     return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
@@ -68,19 +61,8 @@
       return;
     }
 
-    /* 3. Na home smo.
-       U PWA režimu: dozvoli izlaz tek kada smo potrošili sve guard-ove.
-       U browser režimu: pusti browser da odluči. */
-    if (isPWA) {
-      /* U PWA, kada si na home i pritisneš back, želimo da se
-         aplikacija minimizuje (kao prava aplikacija).
-         Ali da ne izbaci odmah, dodajemo jedan guard. */
-      if (guardCount > 0) {
-        guardCount--;
-        /* Ne dodajemo novi guard — pustimo da sledeći back izađe */
-      }
-    }
-    /* Ako nije PWA, browser će sam da izađe iz sajta */
+    /* 3. Na home smo — dodaj JOŠ jedan guard da sprečimo izlaz */
+    pushGuard();
   }
 
   function watchModals() {
@@ -114,8 +96,6 @@
   }
 
   function init() {
-    detectPWA();
-
     try {
       history.replaceState({ app: 'alatikapro', screen: 'home', guard: 0 }, '');
     } catch (e) {}
@@ -125,16 +105,12 @@
     window.addEventListener('popstate', onPopState);
     watchModals();
     watchRoutes();
-
-    /* Ako se promeni display mode (npr. korisnik zatvori PWA pa otvori u browseru), ponovo detektuj */
-    window.matchMedia('(display-mode: standalone)').addEventListener('change', detectPWA);
   }
 
   global.backButton = {
     init: init,
     hasOpenModal: hasOpenModal,
     closeOpenModal: closeOpenModal,
-    pushGuard: pushGuard,
-    isPWA: function () { return isPWA; }
+    pushGuard: pushGuard
   };
 })(window);
