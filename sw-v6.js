@@ -1,5 +1,5 @@
 /* Alatika Pro — Service Worker v6 */
-const CACHE_NAME = 'alatikapro-v9';
+const CACHE_NAME = 'alatikapro-v10';
 const CORE_ASSETS = [
   './', './index.html', './manifest.json', './sw-v6.js',
   './css/base.css', './css/theme.css', './css/layout-v6.css',
