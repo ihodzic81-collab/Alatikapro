@@ -33,13 +33,24 @@
     }
     helloEl.textContent = greeting;
 
+    /* Datum — RUČNO sastavljen, uvek latinica */
     const lang = (global.i18n && global.i18n.getLang) ? global.i18n.getLang() : 'sr';
-    const locale = lang === 'en' ? 'en-GB' : 'sr-RS';
     const d = new Date();
-    const formatted = d.toLocaleDateString(locale, {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
-    dateEl.textContent = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+
+    if (lang === 'en') {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+      const formatted = days[d.getDay()] + ', ' + d.getDate() + '. ' + months[d.getMonth()] + ' ' + d.getFullYear() + '.';
+      dateEl.textContent = formatted;
+    } else {
+      const days = ['nedelja', 'ponedeljak', 'utorak', 'sreda', 'četvrtak', 'petak', 'subota'];
+      const months = ['januar', 'februar', 'mart', 'april', 'maj', 'jun',
+                      'jul', 'avgust', 'septembar', 'oktobar', 'novembar', 'decembar'];
+      let formatted = days[d.getDay()] + ', ' + d.getDate() + '. ' + months[d.getMonth()] + ' ' + d.getFullYear() + '.';
+      formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+      dateEl.textContent = formatted;
+    }
   }
 
   /* ---------- KARTICE MODULA ---------- */
@@ -99,7 +110,6 @@
     if (global.pinUI && global.pinUI.promptUnlock) {
       global.pinUI.promptUnlock(moduleKey,
         function () {
-          /* Uspešno otključano */
           global.router.navigate(route);
         },
         function () {
@@ -123,12 +133,10 @@
     renderRatesWidget(wrap);
   }
 
-  /* Pomoćna: proveri da li je modul zaključan */
   function isModuleLocked(moduleKey) {
     return global.pin && global.pin.isModuleLocked(moduleKey);
   }
 
-  /* Overlay za zaključane vidžete */
   function attachLockOverlay(card, moduleKey, moduleLabel) {
     card.classList.add('home-widget-locked');
     const overlay = document.createElement('div');
@@ -390,7 +398,6 @@
   function renderRatesWidget(parent) {
     const card = document.createElement('div');
     card.className = 'home-widget';
-    /* Kursna lista nije vezana za modul — ne zaključava se */
 
     card.innerHTML = [
       '<div class="hw-header">',
@@ -609,7 +616,6 @@
     const moduleKey = moduleKeyMap[key];
     if (!moduleKey) return;
 
-    /* Ako je modul zaključan — prvo traži PIN */
     if (isModuleLocked(moduleKey) && !global.pin.isUnlockedThisSession(moduleKey)) {
       if (global.pinUI && global.pinUI.promptUnlock) {
         global.pinUI.promptUnlock(moduleKey, function () {
@@ -697,7 +703,7 @@
     });
   }
 
-  /* ---------- LOCK BUTTONS (u headerima modula) ---------- */
+  /* ---------- LOCK BUTTONS ---------- */
 
   function bindModuleLockButtons() {
     document.querySelectorAll('[data-module-lock]').forEach(function (btn) {
@@ -707,7 +713,6 @@
       const moduleName = btn.getAttribute('data-module-lock');
       if (!moduleName) return;
 
-      /* Postavi početno stanje (ikonica + klasa) */
       updateLockButton(btn, moduleName);
 
       btn.addEventListener('click', function (e) {
@@ -728,7 +733,6 @@
         : tr('pin.unlockedTitle', 'Kartica nije zaključana — klikni da zaključaš')
     );
 
-    /* Zameni SVG ikonicu */
     const openLockSvg =
       '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.5-2"></path></svg>';
     const closedLockSvg =
@@ -740,7 +744,6 @@
     const locked = global.pin.isModuleLocked(moduleName);
 
     if (locked) {
-      /* Ako je zaključan — traži PIN za otključavanje */
       if (global.pinUI && global.pinUI.promptUnlock) {
         global.pinUI.promptUnlock(moduleName, function () {
           showToast(tr('pin.unlockedShort', '✓ Kartica je otključana.'));
@@ -756,7 +759,6 @@
         renderWidgets();
       }
     } else {
-      /* Ako nije zaključan — traži da postavi PIN */
       if (global.pinUI && global.pinUI.promptSetPin) {
         global.pinUI.promptSetPin(moduleName, function () {
           showToast(tr('pin.lockedShort', '🔒 Kartica je zaključana.'));
@@ -766,7 +768,6 @@
           renderWidgets();
         });
       } else {
-        /* Fallback ako nema pinUI */
         global.pin.setModulePin(moduleName, '0000').then(function () {
           showToast(tr('pin.lockedShort', '🔒 Kartica je zaključana.'));
           global.router.navigate('home');
