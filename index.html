@@ -22,8 +22,9 @@
       display: flex !important;
       align-items: center !important;
       gap: 0.75rem !important;
-      flex: 0 1 auto !important;
-      max-width: 55% !important;
+      flex: 0 0 auto !important;
+      width: auto !important;
+      max-width: fit-content !important;
       min-width: 0 !important;
     }
     header.app-header > .header-actions {
@@ -159,11 +160,13 @@
 
   <script>
     /* =========================================================
-       INLINE BACK-BUTTON — ne kešira se
-       Back dugme NIKADA ne izbacuje iz aplikacije.
+       INLINE BACK-BUTTON — v2
+       Strategija: ograničavamo dodavanje guard-ova.
        ========================================================= */
     (function () {
       'use strict';
+
+      let lastGuardTime = 0;
 
       function hasOpenModal() {
         return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
@@ -185,8 +188,11 @@
       }
 
       function pushGuard() {
+        const now = Date.now();
+        if (now - lastGuardTime < 200) return;
+        lastGuardTime = now;
         try {
-          history.pushState({ app: 'alatikapro', guard: Date.now() }, '');
+          history.pushState({ app: 'alatikapro', guard: now }, '');
         } catch (e) {}
       }
 
@@ -195,7 +201,7 @@
         return route === 'home';
       }
 
-      function onPopState() {
+      function onPopState(e) {
         if (hasOpenModal()) {
           closeOpenModal();
           pushGuard();
