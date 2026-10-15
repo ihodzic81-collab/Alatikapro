@@ -10,44 +10,44 @@
   <meta http-equiv="Expires" content="0" />
   <title>Alatika Pro</title>
 
- <style>
-  header.app-header {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    width: 100% !important;
-    padding-right: 0.75rem !important;
-  }
-  header.app-header > .brand {
-    display: flex !important;
-    align-items: center !important;
-    gap: 0.5rem !important;
-    flex: 0 1 auto !important;
-    min-width: 0 !important;
-  }
-  header.app-header > .brand .brand-text {
-    min-width: 0 !important;
-  }
-  header.app-header > .brand .brand-name {
-    font-size: 1rem !important;
-  }
-  header.app-header > .brand .brand-tagline {
-    display: none !important;
-  }
-  header.app-header > .header-actions {
-    display: flex !important;
-    align-items: center !important;
-    gap: 0.1rem !important;
-    flex: 0 0 auto !important;
-    margin-left: auto !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
-  header.app-header > .header-actions .icon-btn {
-    width: 38px !important;
-    height: 38px !important;
-  }
-</style>
+  <style>
+    header.app-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      width: 100% !important;
+      padding-right: 0.75rem !important;
+    }
+    header.app-header > .brand {
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+      flex: 0 1 auto !important;
+      min-width: 0 !important;
+    }
+    header.app-header > .brand .brand-text {
+      min-width: 0 !important;
+    }
+    header.app-header > .brand .brand-name {
+      font-size: 1rem !important;
+    }
+    header.app-header > .brand .brand-tagline {
+      display: none !important;
+    }
+    header.app-header > .header-actions {
+      display: flex !important;
+      align-items: center !important;
+      gap: 0.1rem !important;
+      flex: 0 0 auto !important;
+      margin-left: auto !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+    header.app-header > .header-actions .icon-btn {
+      width: 38px !important;
+      height: 38px !important;
+    }
+  </style>
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icons/web-app-manifest-192x192.png" />
@@ -170,14 +170,11 @@
   <script src="js/app.js"></script>
 
   <script>
-    /* =========================================================
-       INLINE BACK-BUTTON — v2
-       Strategija: ograničavamo dodavanje guard-ova.
-       ========================================================= */
     (function () {
       'use strict';
 
       let lastGuardTime = 0;
+      const GUARD_COOLDOWN = 400;
 
       function hasOpenModal() {
         return !!document.querySelector('.modal-overlay.show, .pin-overlay.show, .help-modal-overlay.show');
@@ -200,7 +197,7 @@
 
       function pushGuard() {
         const now = Date.now();
-        if (now - lastGuardTime < 200) return;
+        if (now - lastGuardTime < GUARD_COOLDOWN) return;
         lastGuardTime = now;
         try {
           history.pushState({ app: 'alatikapro', guard: now }, '');
@@ -212,7 +209,7 @@
         return route === 'home';
       }
 
-      function onPopState(e) {
+      function onPopState() {
         if (hasOpenModal()) {
           closeOpenModal();
           pushGuard();
