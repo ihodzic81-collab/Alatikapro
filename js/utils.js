@@ -273,11 +273,28 @@
         ? ['Mo','Tu','We','Th','Fr','Sa','Su']
         : ['Po','Ut','Sr','Če','Pe','Su','Ne'];
 
+      const currentYear = new Date().getFullYear();
+      const minYear = 1900;
+      const maxYear = currentYear + 5;
+
+      let yearOptions = '';
+      for (let y = maxYear; y >= minYear; y--) {
+        yearOptions += '<option value="' + y + '"' + (y === viewYear ? ' selected' : '') + '>' + y + '</option>';
+      }
+
+      let monthOptions = '';
+      monthNames.forEach(function (mn, idx) {
+        monthOptions += '<option value="' + idx + '"' + (idx === viewMonth ? ' selected' : '') + '>' + mn + '</option>';
+      });
+
       let html = [
         '<div class="mc-header">',
-        '  <button type="button" class="mc-nav" data-mc-dir="-1">‹</button>',
-        '  <span class="mc-title">' + monthNames[viewMonth] + ' ' + viewYear + '</span>',
-        '  <button type="button" class="mc-nav" data-mc-dir="1">›</button>',
+        '  <button type="button" class="mc-nav" data-mc-dir="-12" title="Prethodna godina">«</button>',
+        '  <button type="button" class="mc-nav" data-mc-dir="-1" title="Prethodni mesec">‹</button>',
+        '  <select class="mc-select-month" data-mc-month>' + monthOptions + '</select>',
+        '  <select class="mc-select-year" data-mc-year>' + yearOptions + '</select>',
+        '  <button type="button" class="mc-nav" data-mc-dir="1" title="Sledeći mesec">›</button>',
+        '  <button type="button" class="mc-nav" data-mc-dir="12" title="Sledeća godina">»</button>',
         '</div>',
         '<div class="mc-days">'
       ];
@@ -310,12 +327,36 @@
         btn.addEventListener('click', function (e) {
           e.stopPropagation();
           const dir = Number(btn.getAttribute('data-mc-dir'));
-          viewMonth += dir;
-          if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
-          if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+          if (Math.abs(dir) === 12) {
+            viewYear += dir / 12;
+            if (viewYear < minYear) viewYear = minYear;
+            if (viewYear > maxYear) viewYear = maxYear;
+          } else {
+            viewMonth += dir;
+            if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+            if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+          }
           render();
         });
       });
+
+      const monthSelect = cal.querySelector('[data-mc-month]');
+      if (monthSelect) {
+        monthSelect.addEventListener('change', function (e) {
+          e.stopPropagation();
+          viewMonth = Number(monthSelect.value);
+          render();
+        });
+      }
+
+      const yearSelect = cal.querySelector('[data-mc-year]');
+      if (yearSelect) {
+        yearSelect.addEventListener('change', function (e) {
+          e.stopPropagation();
+          viewYear = Number(yearSelect.value);
+          render();
+        });
+      }
 
       cal.querySelectorAll('[data-mc-day]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -330,6 +371,18 @@
 
     render();
     wrap.appendChild(cal);
+
+    /* Pametno pozicioniranje — da ne izlazi van ekrana */
+    const rect = cal.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+
+    if (rect.right > viewportWidth - 8) {
+      cal.style.left = 'auto';
+      cal.style.right = '0';
+    } else {
+      cal.style.left = '0';
+      cal.style.right = 'auto';
+    }
 
     setTimeout(function () {
       function closeCal(e) {
