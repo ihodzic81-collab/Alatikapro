@@ -1,6 +1,6 @@
 /* =========================================================
    ALATIKA PRO — router.js
-   VERZIJA 4.0 — bez pushGuard (to radi inline skripta)
+   VERZIJA 3.1 — pushGuard u navigate() i onHashChange()
    ========================================================= */
 
 (function (global) {
@@ -11,6 +11,8 @@
 
   let currentRoute = DEFAULT_ROUTE;
   const listeners = [];
+  let lastGuardTime = 0;
+  const GUARD_COOLDOWN = 400;
 
   function normalize(hash) {
     if (!hash) return DEFAULT_ROUTE;
@@ -23,6 +25,15 @@
 
   function getRouteFromHash() {
     return normalize(global.location.hash);
+  }
+
+  function pushGuard() {
+    const now = Date.now();
+    if (now - lastGuardTime < GUARD_COOLDOWN) return;
+    lastGuardTime = now;
+    try {
+      history.pushState({ app: 'alatikapro', guard: now }, '');
+    } catch (e) {}
   }
 
   function updateView(route) {
@@ -72,6 +83,7 @@
       } else {
         global.location.hash = targetHash;
       }
+      pushGuard();
     } else {
       updateView(r);
     }
@@ -81,6 +93,7 @@
     const r = getRouteFromHash();
     if (r !== currentRoute) {
       updateView(r);
+      pushGuard();
     }
   }
 
@@ -97,6 +110,8 @@
         if (r) navigate(r);
       });
     });
+
+    pushGuard();
   }
 
   function current() {
