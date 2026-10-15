@@ -79,6 +79,7 @@ html, body { height: 100%; }
   gap: 0.15rem;
   flex: 1 1 auto;
   justify-content: flex-end;
+  margin-left: auto;
   padding-left: 0.5rem;
 }
 
